@@ -26,8 +26,15 @@ function AppWorkspace() {
   useEffect(() => {
     const q = searchParams.get('q');
     const m = searchParams.get('mode') as OtherSideMode | null;
-    if (q) setText(decodeURIComponent(q));
-    if (m && ['quick', 'deep', 'history'].includes(m)) setMode(m);
+    const autorun = searchParams.get('autorun') === '1';
+
+    if (q) {
+      const decoded = decodeURIComponent(q);
+      setText(decoded);
+      if (m && ['quick', 'deep', 'history'].includes(m)) setMode(m);
+      if (autorun) handleGenerate(decoded);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const handleSelectExample = (claim: string) => {

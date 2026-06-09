@@ -18,7 +18,7 @@ export default function QuickTryForm() {
     e.preventDefault();
     const trimmed = text.trim();
     if (!trimmed) return;
-    router.push(`/app?q=${encodeURIComponent(trimmed)}`);
+    router.push(`/app?q=${encodeURIComponent(trimmed)}&autorun=1`);
   };
 
   return (
