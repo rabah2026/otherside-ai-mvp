@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useId, useRef, useState } from 'react';
+import React, { useId } from 'react';
 import { OtherSideReport } from '@/types';
 import NeutralityBadge from './NeutralityBadge';
 import EvidenceStrip from './EvidenceStrip';
 import DisputedPoints from './DisputedPoints';
-import { ShieldCheck, Scale, AlertCircle, FileText, CheckCircle2, Brain, Search, Download, Image, Loader2 } from 'lucide-react';
+import { ShieldCheck, Scale, AlertCircle, FileText, CheckCircle2, Brain, Search } from 'lucide-react';
 import { useLang } from '@/context/LanguageContext';
 
 interface Props {
@@ -16,118 +16,9 @@ interface Props {
 export default function ReportBrief({ report, demoMode }: Props) {
   const { t } = useLang();
   const stableId = useId().replace(/:/g, '').substring(0, 5).toUpperCase();
-  const reportRef = useRef<HTMLDivElement>(null);
-  const [pngLoading, setPngLoading] = useState(false);
-
-  const handleSavePDF = () => {
-    window.print();
-  };
-
-  const openReportWindow = () => {
-    // Fallback: render the report in a clean standalone window so user can screenshot it
-    const el = reportRef.current;
-    if (!el) return;
-    const win = window.open('', '_blank');
-    if (!win) return;
-    const allStyles = Array.from(document.querySelectorAll('style'))
-      .map(s => s.outerHTML).join('\n');
-    const linkStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-      .map(l => l.outerHTML).join('\n');
-    win.document.write(`<!DOCTYPE html>
-<html lang="${document.documentElement.lang}" dir="${document.documentElement.dir}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${t.nav_brand}</title>
-${linkStyles}
-${allStyles}
-<style>
-  html,body{background:#050508;margin:0;padding:16px;}
-  .no-print{display:none!important;}
-  .report-card{max-width:100%!important;}
-  #screenshot-tip{font-size:11px;color:#6b7280;font-family:monospace;text-align:center;padding:8px;border-bottom:1px solid #262626;margin:-16px -16px 16px;}
-</style>
-</head>
-<body>
-<div id="screenshot-tip">📸 Take a screenshot to save this report</div>
-${el.outerHTML}
-</body>
-</html>`);
-    win.document.close();
-  };
-
-  const handleSavePNG = async () => {
-    if (!reportRef.current || pngLoading) return;
-    setPngLoading(true);
-
-    const el = reportRef.current;
-
-    // Patch: clone the element and strip backdrop-filter which crashes html2canvas
-    const clone = el.cloneNode(true) as HTMLElement;
-    clone.style.cssText += ';backdrop-filter:none;-webkit-backdrop-filter:none;background:#0d0d14;';
-    clone.querySelectorAll<HTMLElement>('*').forEach(child => {
-      const computed = getComputedStyle(child);
-      if (computed.backdropFilter !== 'none') {
-        child.style.backdropFilter = 'none';
-        (child.style as any).webkitBackdropFilter = 'none';
-      }
-    });
-    // Position off-screen, same width as original
-    clone.style.position = 'fixed';
-    clone.style.top = '-9999px';
-    clone.style.left = '0';
-    clone.style.width = el.offsetWidth + 'px';
-    clone.style.zIndex = '-1';
-    document.body.appendChild(clone);
-
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(clone, {
-        backgroundColor: '#050508',
-        scale: 1,
-        useCORS: true,
-        allowTaint: true,
-        foreignObjectRendering: false,
-        logging: false,
-      });
-      document.body.removeChild(clone);
-
-      const filename = `otherside-report-${stableId}.png`;
-      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'));
-      if (blob) {
-        const file = new File([blob], filename, { type: 'image/png' });
-        // iOS / modern Android: share the file
-        if (navigator.canShare?.({ files: [file] })) {
-          try {
-            await navigator.share({ files: [file], title: t.nav_brand });
-            return;
-          } catch (e: any) {
-            if (e.name === 'AbortError') return;
-          }
-        }
-        // Desktop: direct download
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.download = filename;
-        link.href = url;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      } else {
-        openReportWindow();
-      }
-    } catch {
-      if (document.body.contains(clone)) document.body.removeChild(clone);
-      // html2canvas failed — open a clean window the user can screenshot
-      openReportWindow();
-    } finally {
-      setPngLoading(false);
-    }
-  };
 
   return (
-    <div ref={reportRef} className="report-card glass-panel rounded-xl overflow-hidden border border-neutral-800/60 max-w-4xl mx-auto relative">
+    <div className="report-card glass-panel rounded-xl overflow-hidden border border-neutral-800/60 max-w-4xl mx-auto relative">
       {demoMode && (
         <div className="flex items-start gap-3 px-6 py-4 bg-amber-950/40 border-b border-amber-800/40 no-print">
           <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
@@ -153,33 +44,9 @@ ${el.outerHTML}
               {t.report_title}
             </h2>
           </div>
-          <div className="flex flex-col gap-2 items-start sm:items-end">
-            <div className="text-xs text-neutral-500 font-mono space-y-0.5 text-start sm:text-end">
-              <div>{t.report_id_prefix} OB-{stableId}</div>
-              <div>{t.report_classification}</div>
-            </div>
-            {/* Export buttons */}
-            <div className="flex gap-2 no-print">
-              <button
-                type="button"
-                onClick={handleSavePDF}
-                className="flex items-center gap-1 px-2.5 py-1 rounded border border-neutral-800 bg-neutral-950/40 text-[10px] text-neutral-500 hover:text-white hover:border-neutral-600 transition-all font-mono uppercase tracking-wide"
-              >
-                <Download className="w-3 h-3" /> {t.report_export_pdf}
-              </button>
-              <button
-                type="button"
-                onClick={handleSavePNG}
-                disabled={pngLoading}
-                className="flex items-center gap-1 px-2.5 py-1 rounded border border-neutral-800 bg-neutral-950/40 text-[10px] text-neutral-500 hover:text-white hover:border-neutral-600 transition-all font-mono uppercase tracking-wide disabled:opacity-50"
-              >
-                {pngLoading
-                  ? <Loader2 className="w-3 h-3 animate-spin" />
-                  : <Image className="w-3 h-3" />
-                }
-                {t.report_export_png}
-              </button>
-            </div>
+          <div className="text-xs text-neutral-500 font-mono space-y-0.5 text-start sm:text-end">
+            <div>{t.report_id_prefix} OB-{stableId}</div>
+            <div>{t.report_classification}</div>
           </div>
         </div>
 

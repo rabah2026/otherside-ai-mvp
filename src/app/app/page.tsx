@@ -9,7 +9,7 @@ import ReportBrief from '@/components/ReportBrief';
 import DemoExamplePanel from '@/components/DemoExamplePanel';
 import LanguageToggle from '@/components/LanguageToggle';
 import { OtherSideMode, OtherSideReport, SourceStrictness } from '@/types';
-import { ShieldAlert, RefreshCw, Settings2, Share2, Check } from 'lucide-react';
+import { ShieldAlert, RefreshCw, Settings2, Share2, Check, Download } from 'lucide-react';
 import { useLang } from '@/context/LanguageContext';
 
 function AppWorkspace() {
@@ -198,23 +198,33 @@ function AppWorkspace() {
               <div className="text-xs font-mono uppercase tracking-widest text-neutral-500">
                 {t.workspace_report_label}
               </div>
-              <button
-                type="button"
-                onClick={handleShare}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-800 bg-neutral-950/40 text-xs text-neutral-400 hover:text-white hover:border-neutral-600 transition-all"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">{t.workspace_copied}</span>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="w-3.5 h-3.5" />
-                    {t.workspace_share}
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-800 bg-neutral-950/40 text-xs text-neutral-400 hover:text-white hover:border-neutral-600 transition-all"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {t.report_export_pdf}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-800 bg-neutral-950/40 text-xs text-neutral-400 hover:text-white hover:border-neutral-600 transition-all"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-emerald-400">{t.workspace_copied}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Share2 className="w-3.5 h-3.5" />
+                      {t.workspace_share}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
             <ReportBrief report={report} demoMode={demoMode} />
           </div>
