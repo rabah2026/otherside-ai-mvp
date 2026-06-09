@@ -60,6 +60,8 @@ async function callOpenAICompat<T>(system: string, prompt: string): Promise<T> {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
+        'HTTP-Referer': 'https://otherside.ai',
+        'X-Title': 'OtherSide AI',
       },
       body: JSON.stringify({
         model,
@@ -68,6 +70,8 @@ async function callOpenAICompat<T>(system: string, prompt: string): Promise<T> {
           { role: 'user', content: prompt },
         ],
         temperature: 0.1,
+        // OpenRouter routing hints (ignored by standard OpenAI endpoints)
+        route: 'fallback',
       }),
       signal: controller.signal,
     });
