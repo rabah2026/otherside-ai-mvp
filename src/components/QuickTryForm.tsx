@@ -4,6 +4,12 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 
+const SAMPLES = [
+  { label: 'OpenAI vs Elon', claim: 'Elon Musk says OpenAI betrayed its original nonprofit mission and became too close to Microsoft.' },
+  { label: 'Galileo Trial', claim: 'The Catholic Inquisition forced Galileo Galilei to recant his heliocentric view, declaring it contrary to holy scripture.' },
+  { label: 'Apple vs Epic', claim: 'Epic Games accuses Apple of maintaining an illegal monopoly by charging a 30% commission on the iOS App Store.' },
+];
+
 export default function QuickTryForm() {
   const [text, setText] = useState('');
   const router = useRouter();
@@ -17,6 +23,24 @@ export default function QuickTryForm() {
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto mt-8 space-y-3">
+      {/* Sample pills */}
+      <div className="flex flex-wrap gap-2 justify-center">
+        {SAMPLES.map((s) => (
+          <button
+            key={s.label}
+            type="button"
+            onClick={() => setText(s.claim)}
+            className={`px-3 py-1 rounded-full border text-xs font-mono transition-all ${
+              text === s.claim
+                ? 'bg-neutral-800 border-neutral-600 text-white'
+                : 'bg-transparent border-neutral-800 text-neutral-500 hover:border-neutral-600 hover:text-neutral-300'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
