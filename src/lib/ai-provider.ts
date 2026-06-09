@@ -11,6 +11,9 @@ export const aiProvider: AIProvider = {
     const apiKey = process.env.OPENAI_API_KEY || 'no-key-required';
     const model = process.env.AI_MODEL || 'google/gemma-4-12b';
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout limit
+
     try {
       const response = await fetch(`${apiBase}/chat/completions`, {
         method: 'POST',
@@ -26,7 +29,9 @@ export const aiProvider: AIProvider = {
           ],
           temperature: 0.1,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`LM Studio / OpenAI API returned error status: ${response.status}`);
