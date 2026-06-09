@@ -36,6 +36,8 @@ export interface SourceNote {
   strength: SourceStrength;
   title?: string;
   url?: string;
+  author?: string;
+  year?: string;
 }
 
 export interface OtherSideReport {
@@ -49,6 +51,8 @@ export interface OtherSideReport {
   sourceNotes: SourceNote[];
   uncertaintyNotes: string[];
   neutralNote: string;
+  logicalLeaps?: string[];
+  keyEvidenceGaps?: string[];
 }
 
 export interface GenerateReportInput {

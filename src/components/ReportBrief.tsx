@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useId } from 'react';
+import React, { useId, useRef } from 'react';
 import { OtherSideReport } from '@/types';
 import NeutralityBadge from './NeutralityBadge';
 import EvidenceStrip from './EvidenceStrip';
 import DisputedPoints from './DisputedPoints';
-import { ShieldCheck, Scale, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Scale, AlertCircle, FileText, CheckCircle2, Brain, Search, Download, Image } from 'lucide-react';
 import { useLang } from '@/context/LanguageContext';
 
 interface Props {
@@ -16,11 +16,31 @@ interface Props {
 export default function ReportBrief({ report, demoMode }: Props) {
   const { t } = useLang();
   const stableId = useId().replace(/:/g, '').substring(0, 5).toUpperCase();
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const handleSavePDF = () => {
+    window.print();
+  };
+
+  const handleSavePNG = async () => {
+    if (!reportRef.current) return;
+    const html2canvas = (await import('html2canvas')).default;
+    const canvas = await html2canvas(reportRef.current, {
+      backgroundColor: '#050508',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+    const link = document.createElement('a');
+    link.download = `otherside-report-${stableId}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
 
   return (
-    <div className="glass-panel rounded-xl overflow-hidden border border-neutral-800/60 max-w-4xl mx-auto relative">
+    <div ref={reportRef} className="report-card glass-panel rounded-xl overflow-hidden border border-neutral-800/60 max-w-4xl mx-auto relative">
       {demoMode && (
-        <div className="flex items-start gap-3 px-6 py-4 bg-amber-950/40 border-b border-amber-800/40">
+        <div className="flex items-start gap-3 px-6 py-4 bg-amber-950/40 border-b border-amber-800/40 no-print">
           <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
           <div className="text-xs text-amber-300 leading-relaxed">
             <span className="font-semibold uppercase tracking-wider">{t.report_demo_title}</span>
@@ -34,6 +54,7 @@ export default function ReportBrief({ report, demoMode }: Props) {
       )}
 
       <div className="p-6 sm:p-8 space-y-8">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-neutral-900">
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -43,12 +64,32 @@ export default function ReportBrief({ report, demoMode }: Props) {
               {t.report_title}
             </h2>
           </div>
-          <div className="text-left sm:text-right text-xs text-neutral-500 font-mono space-y-0.5">
-            <div>{t.report_id_prefix} OB-{stableId}</div>
-            <div>{t.report_classification}</div>
+          <div className="flex flex-col gap-2 items-start sm:items-end">
+            <div className="text-xs text-neutral-500 font-mono space-y-0.5 text-start sm:text-end">
+              <div>{t.report_id_prefix} OB-{stableId}</div>
+              <div>{t.report_classification}</div>
+            </div>
+            {/* Export buttons */}
+            <div className="flex gap-2 no-print">
+              <button
+                type="button"
+                onClick={handleSavePDF}
+                className="flex items-center gap-1 px-2.5 py-1 rounded border border-neutral-800 bg-neutral-950/40 text-[10px] text-neutral-500 hover:text-white hover:border-neutral-600 transition-all font-mono uppercase tracking-wide"
+              >
+                <Download className="w-3 h-3" /> {t.report_export_pdf}
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePNG}
+                className="flex items-center gap-1 px-2.5 py-1 rounded border border-neutral-800 bg-neutral-950/40 text-[10px] text-neutral-500 hover:text-white hover:border-neutral-600 transition-all font-mono uppercase tracking-wide"
+              >
+                <Image className="w-3 h-3" /> {t.report_export_png}
+              </button>
+            </div>
           </div>
         </div>
 
+        {/* Detected narrative */}
         <div className="bg-neutral-900/20 border border-neutral-800/30 p-4 rounded-lg space-y-2">
           <div className="text-[10px] uppercase font-bold tracking-wider text-neutral-500 flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5" /> {t.report_detected_narrative}
@@ -68,6 +109,7 @@ export default function ReportBrief({ report, demoMode }: Props) {
           </div>
         </div>
 
+        {/* Other side narrative */}
         <div className="space-y-3">
           <h3 className="text-xs uppercase tracking-wider text-neutral-500 font-semibold flex items-center gap-1.5">
             <Scale className="w-3.5 h-3.5" /> {t.report_other_side_title}
@@ -77,6 +119,7 @@ export default function ReportBrief({ report, demoMode }: Props) {
           </p>
         </div>
 
+        {/* Strongest counter */}
         <div className="p-5 rounded-lg border-s-2 border-neutral-700 bg-neutral-900/20 space-y-2">
           <h3 className="text-xs uppercase tracking-wider text-neutral-400 font-semibold flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-neutral-400" /> {t.report_strongest_counter_title}
@@ -86,6 +129,43 @@ export default function ReportBrief({ report, demoMode }: Props) {
           </p>
         </div>
 
+        {/* Logical leaps + Evidence gaps */}
+        {((report.logicalLeaps && report.logicalLeaps.length > 0) || (report.keyEvidenceGaps && report.keyEvidenceGaps.length > 0)) && (
+          <div className="grid gap-6 sm:grid-cols-2">
+            {report.logicalLeaps && report.logicalLeaps.length > 0 && (
+              <div className="space-y-2.5">
+                <h3 className="text-xs uppercase tracking-wider text-neutral-500 font-semibold flex items-center gap-1.5">
+                  <Brain className="w-3.5 h-3.5" /> {t.report_logical_leaps_title}
+                </h3>
+                <ul className="space-y-2">
+                  {report.logicalLeaps.map((leap, idx) => (
+                    <li key={idx} className="flex gap-2.5 items-start text-xs text-neutral-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-500/70 mt-1.5 flex-shrink-0" />
+                      <span className="leading-relaxed">{leap}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {report.keyEvidenceGaps && report.keyEvidenceGaps.length > 0 && (
+              <div className="space-y-2.5">
+                <h3 className="text-xs uppercase tracking-wider text-neutral-500 font-semibold flex items-center gap-1.5">
+                  <Search className="w-3.5 h-3.5" /> {t.report_evidence_gaps_title}
+                </h3>
+                <ul className="space-y-2">
+                  {report.keyEvidenceGaps.map((gap, idx) => (
+                    <li key={idx} className="flex gap-2.5 items-start text-xs text-neutral-400">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500/70 mt-1.5 flex-shrink-0" />
+                      <span className="leading-relaxed">{gap}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Agreement + Disputed */}
         <div className="grid gap-6 sm:grid-cols-2">
           {report.bothSidesAgreeOn && report.bothSidesAgreeOn.length > 0 && (
             <div className="space-y-2.5">
