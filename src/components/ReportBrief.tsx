@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useId, useRef } from 'react';
+import React, { useId, useRef, useState } from 'react';
 import { OtherSideReport } from '@/types';
 import NeutralityBadge from './NeutralityBadge';
 import EvidenceStrip from './EvidenceStrip';
 import DisputedPoints from './DisputedPoints';
-import { ShieldCheck, Scale, AlertCircle, FileText, CheckCircle2, Brain, Search, Download, Image } from 'lucide-react';
+import { ShieldCheck, Scale, AlertCircle, FileText, CheckCircle2, Brain, Search, Download, Image, Loader2 } from 'lucide-react';
 import { useLang } from '@/context/LanguageContext';
 
 interface Props {
@@ -17,18 +17,21 @@ export default function ReportBrief({ report, demoMode }: Props) {
   const { t } = useLang();
   const stableId = useId().replace(/:/g, '').substring(0, 5).toUpperCase();
   const reportRef = useRef<HTMLDivElement>(null);
+  const [pngLoading, setPngLoading] = useState(false);
 
   const handleSavePDF = () => {
     window.print();
   };
 
   const handleSavePNG = async () => {
-    if (!reportRef.current) return;
+    if (!reportRef.current || pngLoading) return;
+    setPngLoading(true);
     try {
       const html2canvas = (await import('html2canvas')).default;
       const canvas = await html2canvas(reportRef.current, {
         backgroundColor: '#050508',
-        scale: 2,
+        // scale:1 respects device pixel ratio naturally; scale:2 on mobile causes out-of-memory
+        scale: 1,
         useCORS: true,
         allowTaint: true,
         logging: false,
@@ -36,19 +39,20 @@ export default function ReportBrief({ report, demoMode }: Props) {
 
       const filename = `otherside-report-${stableId}.png`;
 
-      // Mobile: use Web Share API with file if supported
-      canvas.toBlob(async (blob) => {
-        if (!blob) return;
+      // Prefer Web Share API with file (iOS 15+, modern Android)
+      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'));
+      if (blob) {
         const file = new File([blob], filename, { type: 'image/png' });
         if (navigator.canShare?.({ files: [file] })) {
           try {
             await navigator.share({ files: [file], title: t.nav_brand });
             return;
-          } catch {
-            // user cancelled — fall through to download
+          } catch (e: any) {
+            if (e.name === 'AbortError') return; // user cancelled
+            // share failed — fall through
           }
         }
-        // Desktop fallback: anchor download
+        // Desktop: anchor download
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.download = filename;
@@ -56,10 +60,16 @@ export default function ReportBrief({ report, demoMode }: Props) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }, 'image/png');
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } else {
+        // Last resort: open data URL in new tab — user can long-press (mobile) or right-click (desktop) to save
+        window.open(canvas.toDataURL('image/png'), '_blank');
+      }
     } catch {
-      // silently ignore — browser may have blocked canvas capture
+      // If html2canvas itself failed (e.g. security error), open page in new tab
+      window.open(window.location.href, '_blank');
+    } finally {
+      setPngLoading(false);
     }
   };
 
@@ -107,9 +117,14 @@ export default function ReportBrief({ report, demoMode }: Props) {
               <button
                 type="button"
                 onClick={handleSavePNG}
-                className="flex items-center gap-1 px-2.5 py-1 rounded border border-neutral-800 bg-neutral-950/40 text-[10px] text-neutral-500 hover:text-white hover:border-neutral-600 transition-all font-mono uppercase tracking-wide"
+                disabled={pngLoading}
+                className="flex items-center gap-1 px-2.5 py-1 rounded border border-neutral-800 bg-neutral-950/40 text-[10px] text-neutral-500 hover:text-white hover:border-neutral-600 transition-all font-mono uppercase tracking-wide disabled:opacity-50"
               >
-                <Image className="w-3 h-3" /> {t.report_export_png}
+                {pngLoading
+                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                  : <Image className="w-3 h-3" />
+                }
+                {t.report_export_png}
               </button>
             </div>
           </div>
