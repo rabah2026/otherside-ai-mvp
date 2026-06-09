@@ -141,12 +141,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Text input is required' }, { status: 400 });
     }
 
-    const arabicInstructions = language === 'ar' ? `
+    const languageInstructions = language === 'ar' ? `
 
 Language: Arabic
 - Write ALL JSON string fields in Arabic (Modern Standard Arabic / الفصحى). Every field — detectedStory, mainParty, otherParty, otherSideStory, strongestCounterArgument, bothSidesAgreeOn items, disputedPoints items, sourceNotes notes, uncertaintyNotes items, neutralNote — must be in Arabic.
 - If high-quality Arabic-language primary sources exist specifically for this dispute (official Arab government statements, Arabic court documents, Arabic-language journalism from reputable outlets such as Al Jazeera, BBC Arabic, Al Arabiya, Reuters Arabic), cite them preferentially and include Arabic titles.
-- If no meaningful Arabic-language sources exist for this topic, cite the best available sources in any language and note their language in the source note field.` : '';
+- If no meaningful Arabic-language sources exist for this topic, cite the best available sources in any language and note their language in the source note field.` : `
+
+Language: English
+- Write ALL JSON string fields in English, regardless of the language the user wrote the input in.`;
 
     const userPrompt = `Analyze the following claim and generate a counter-position report. Do not judge who is right.
 
@@ -154,7 +157,7 @@ User Input Claim:
 ${text}
 
 Analysis Mode: ${mode || 'quick'}
-Source Strictness: ${sourceStrictness || 'balanced'}${arabicInstructions}
+Source Strictness: ${sourceStrictness || 'balanced'}${languageInstructions}
 
 Mode-specific instructions:
 - quick: Focus on the core counter-argument. Be concise. 2–3 sourceNotes. 2–3 logicalLeaps. 2 keyEvidenceGaps.

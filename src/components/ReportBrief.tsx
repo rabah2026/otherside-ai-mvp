@@ -24,17 +24,43 @@ export default function ReportBrief({ report, demoMode }: Props) {
 
   const handleSavePNG = async () => {
     if (!reportRef.current) return;
-    const html2canvas = (await import('html2canvas')).default;
-    const canvas = await html2canvas(reportRef.current, {
-      backgroundColor: '#050508',
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    });
-    const link = document.createElement('a');
-    link.download = `otherside-report-${stableId}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(reportRef.current, {
+        backgroundColor: '#050508',
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+      });
+
+      const filename = `otherside-report-${stableId}.png`;
+
+      // Mobile: use Web Share API with file if supported
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        const file = new File([blob], filename, { type: 'image/png' });
+        if (navigator.canShare?.({ files: [file] })) {
+          try {
+            await navigator.share({ files: [file], title: t.nav_brand });
+            return;
+          } catch {
+            // user cancelled — fall through to download
+          }
+        }
+        // Desktop fallback: anchor download
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    } catch {
+      // silently ignore — browser may have blocked canvas capture
+    }
   };
 
   return (
