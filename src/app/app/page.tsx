@@ -71,15 +71,20 @@ function AppWorkspace() {
   };
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/app?q=${encodeURIComponent(text)}&mode=${mode}`;
+    const baseUrl = `${window.location.origin}/app`;
+    const excerpt = text.length > 120 ? text.substring(0, 120) + '…' : text;
     if (navigator.share) {
       try {
-        await navigator.share({ title: 'OtherSide AI — Counter-Position Report', url });
+        await navigator.share({
+          title: t.nav_brand,
+          text: excerpt,
+          url: baseUrl,
+        });
       } catch {
         // user cancelled share sheet — no action needed
       }
     } else {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(baseUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
