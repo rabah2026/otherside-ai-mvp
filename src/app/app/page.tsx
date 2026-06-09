@@ -92,11 +92,11 @@ function AppWorkspace() {
 
   return (
     <div className="min-h-screen bg-[#050508] text-neutral-300 relative overflow-hidden flex flex-col justify-between">
-      <div className="glow-beam" />
+      <div className="glow-beam no-print" />
 
       <div className="max-w-5xl mx-auto px-4 py-8 relative z-10 w-full flex-grow space-y-10">
         {/* Navigation / Header */}
-        <div className="flex justify-between items-center border-b border-neutral-900 pb-4">
+        <div className="no-print flex justify-between items-center border-b border-neutral-900 pb-4">
           <Link href="/" className="font-serif text-white hover:text-neutral-400 font-semibold tracking-wide flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded bg-white" />
             {t.nav_brand}
@@ -109,7 +109,7 @@ function AppWorkspace() {
         </div>
 
         {/* Input Configuration & Modes */}
-        <div className="space-y-5">
+        <div className="no-print space-y-5">
           <div className="text-center space-y-1">
             <h1 className="text-2xl sm:text-3xl font-serif text-white font-semibold">
               {t.workspace_title}
@@ -189,7 +189,7 @@ function AppWorkspace() {
         {/* Report */}
         {report && !loading && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between max-w-4xl mx-auto">
+            <div className="no-print flex items-center justify-between max-w-4xl mx-auto">
               <div className="text-xs font-mono uppercase tracking-widest text-neutral-500">
                 {t.workspace_report_label}
               </div>
@@ -217,7 +217,7 @@ function AppWorkspace() {
       </div>
 
       {/* Footer */}
-      <footer className="py-6 border-t border-neutral-900 text-center text-[10px] text-neutral-600">
+      <footer className="no-print py-6 border-t border-neutral-900 text-center text-[10px] text-neutral-600">
         {t.workspace_footer}
       </footer>
     </div>
