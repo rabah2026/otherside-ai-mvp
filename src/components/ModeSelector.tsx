@@ -24,7 +24,7 @@ export default function ModeSelector({ selected, onChange }: Props) {
     {
       id: 'history',
       label: 'History Mirror',
-      desc: 'Narrative omissions and primary accounts.',
+      desc: 'For historical disputes — surfaces omitted actors, marginalized voices, and primary documents.',
       icon: <BookOpen className="w-4.5 h-4.5 text-amber-400" />,
     },
   ];

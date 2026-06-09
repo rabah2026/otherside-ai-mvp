@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import ModeSelector from '@/components/ModeSelector';
 import StoryInput from '@/components/StoryInput';
 import ReportBrief from '@/components/ReportBrief';
@@ -9,7 +10,7 @@ import DemoExamplePanel from '@/components/DemoExamplePanel';
 import { OtherSideMode, OtherSideReport, SourceStrictness } from '@/types';
 import { ShieldAlert, RefreshCw, Layers } from 'lucide-react';
 
-export default function AppWorkspace() {
+function AppWorkspace() {
   const [mode, setMode] = useState<OtherSideMode>('quick');
   const [strictness, setStrictness] = useState<SourceStrictness>('balanced');
   const [text, setText] = useState('');
@@ -17,6 +18,13 @@ export default function AppWorkspace() {
   const [report, setReport] = useState<OtherSideReport | null>(null);
   const [demoMode, setDemoMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) setText(decodeURIComponent(q));
+  }, [searchParams]);
 
   const handleSelectExample = (claim: string) => {
     setText(claim);
@@ -97,7 +105,7 @@ export default function AppWorkspace() {
               <span>Source Strictness Filter:</span>
             </div>
             <div className="flex gap-2">
-              {(['balanced', 'strict', 'reasoned'] as SourceStrictness[]).map((st) => (
+              {(['balanced', 'strict', 'lenient'] as SourceStrictness[]).map((st) => (
                 <button
                   key={st}
                   type="button"
@@ -159,5 +167,13 @@ export default function AppWorkspace() {
         OtherSide AI © 2026. All source notes strictly guarded for linguistic neutrality.
       </footer>
     </div>
+  );
+}
+
+export default function AppPage() {
+  return (
+    <Suspense fallback={null}>
+      <AppWorkspace />
+    </Suspense>
   );
 }
