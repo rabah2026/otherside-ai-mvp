@@ -1,17 +1,21 @@
+'use client';
+
 import React from 'react';
 import { HelpCircle } from 'lucide-react';
+import { useLang } from '@/context/LanguageContext';
 
 interface Props {
   points: string[];
 }
 
 export default function DisputedPoints({ points }: Props) {
+  const { t } = useLang();
   if (!points || points.length === 0) return null;
 
   return (
     <div className="space-y-2.5">
       <h3 className="text-xs uppercase tracking-wider text-neutral-500 font-semibold flex items-center gap-1.5">
-        <HelpCircle className="w-3.5 h-3.5" /> Disputed Points
+        <HelpCircle className="w-3.5 h-3.5" /> {t.disputed_title}
       </h3>
       <ul className="space-y-2">
         {points.map((pt, idx) => (

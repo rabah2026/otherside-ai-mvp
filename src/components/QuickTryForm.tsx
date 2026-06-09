@@ -3,16 +3,18 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
-
-const SAMPLES = [
-  { label: 'OpenAI vs Elon', claim: 'Elon Musk says OpenAI betrayed its original nonprofit mission and became too close to Microsoft.' },
-  { label: 'Galileo Trial', claim: 'The Catholic Inquisition forced Galileo Galilei to recant his heliocentric view, declaring it contrary to holy scripture.' },
-  { label: 'Apple vs Epic', claim: 'Epic Games accuses Apple of maintaining an illegal monopoly by charging a 30% commission on the iOS App Store.' },
-];
+import { useLang } from '@/context/LanguageContext';
 
 export default function QuickTryForm() {
   const [text, setText] = useState('');
   const router = useRouter();
+  const { t } = useLang();
+
+  const SAMPLES = [
+    { label: t.form_sample_openai, claim: t.demo_openai_claim },
+    { label: t.form_sample_galileo, claim: t.demo_galileo_claim },
+    { label: t.form_sample_apple, claim: t.demo_apple_claim },
+  ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +25,6 @@ export default function QuickTryForm() {
 
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto mt-8 space-y-3">
-      {/* Sample pills */}
       <div className="flex flex-wrap gap-2 justify-center">
         {SAMPLES.map((s) => (
           <button
@@ -44,7 +45,7 @@ export default function QuickTryForm() {
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Paste a claim, article excerpt, or headline…"
+        placeholder={t.form_placeholder}
         rows={3}
         className="w-full bg-neutral-950/60 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-200 placeholder-neutral-600 resize-none focus:outline-none focus:border-neutral-600 transition-colors"
       />
@@ -54,7 +55,7 @@ export default function QuickTryForm() {
           disabled={!text.trim()}
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-black text-xs font-semibold rounded-lg tracking-wider uppercase hover:bg-neutral-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
         >
-          Show the other side <ArrowRight className="w-3.5 h-3.5" />
+          {t.form_submit} <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
     </form>
