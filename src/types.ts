@@ -1,5 +1,5 @@
 export type OtherSideMode = 'quick' | 'deep' | 'history';
-export type SourceStrictness = 'balanced' | 'strict' | 'reasoned';
+export type SourceStrictness = 'balanced' | 'strict' | 'lenient';
 export type SourceStrength = 'strong' | 'medium' | 'weak' | 'missing';
 export type SourceType =
   | 'official_statement'

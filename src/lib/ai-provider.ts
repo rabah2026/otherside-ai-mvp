@@ -12,7 +12,7 @@ export const aiProvider: AIProvider = {
     const model = process.env.AI_MODEL || 'google/gemma-4-12b';
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout limit
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
 
     try {
       const response = await fetch(`${apiBase}/chat/completions`, {

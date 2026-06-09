@@ -1,22 +1,34 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import ModeSelector from '@/components/ModeSelector';
 import StoryInput from '@/components/StoryInput';
 import ReportBrief from '@/components/ReportBrief';
 import DemoExamplePanel from '@/components/DemoExamplePanel';
 import { OtherSideMode, OtherSideReport, SourceStrictness } from '@/types';
-import { ShieldAlert, RefreshCw, Layers } from 'lucide-react';
+import { ShieldAlert, RefreshCw, Settings2, Share2, Check } from 'lucide-react';
 
-export default function AppWorkspace() {
+function AppWorkspace() {
   const [mode, setMode] = useState<OtherSideMode>('quick');
   const [strictness, setStrictness] = useState<SourceStrictness>('balanced');
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<OtherSideReport | null>(null);
   const [demoMode, setDemoMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    const m = searchParams.get('mode') as OtherSideMode | null;
+    if (q) setText(decodeURIComponent(q));
+    if (m && ['quick', 'deep', 'history'].includes(m)) setMode(m);
+  }, [searchParams]);
 
   const handleSelectExample = (claim: string) => {
     setText(claim);
@@ -30,24 +42,14 @@ export default function AppWorkspace() {
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: inputText,
-          mode,
-          sourceStrictness: strictness,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: inputText, mode, sourceStrictness: strictness }),
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to generate report');
-      }
+      if (!res.ok) throw new Error('Failed to generate report');
 
       const data = await res.json();
-      if (data.error) {
-        throw new Error(data.error);
-      }
+      if (data.error) throw new Error(data.error);
 
       setReport(data.report);
       setDemoMode(data.demoMode);
@@ -58,12 +60,26 @@ export default function AppWorkspace() {
     }
   };
 
+  const handleShare = async () => {
+    const url = `${window.location.origin}/app?q=${encodeURIComponent(text)}&mode=${mode}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'OtherSide AI — Counter-Position Report', url });
+      } catch {
+        // user cancelled share sheet — no action needed
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#050508] text-neutral-300 relative overflow-hidden flex flex-col justify-between">
       <div className="glow-beam" />
 
-      {/* Main Workspace Wrapper */}
-      <div className="max-w-5xl mx-auto px-4 py-8 relative z-10 w-full flex-grow space-y-12">
+      <div className="max-w-5xl mx-auto px-4 py-8 relative z-10 w-full flex-grow space-y-10">
         {/* Navigation / Header */}
         <div className="flex justify-between items-center border-b border-neutral-900 pb-4">
           <Link href="/" className="font-serif text-white hover:text-neutral-400 font-semibold tracking-wide flex items-center gap-2">
@@ -77,8 +93,8 @@ export default function AppWorkspace() {
         </div>
 
         {/* Input Configuration & Modes */}
-        <div className="space-y-6">
-          <div className="text-center space-y-2">
+        <div className="space-y-5">
+          <div className="text-center space-y-1">
             <h1 className="text-2xl sm:text-3xl font-serif text-white font-semibold">
               Research Workspace
             </h1>
@@ -90,34 +106,49 @@ export default function AppWorkspace() {
           {/* Mode Selector */}
           <ModeSelector selected={mode} onChange={setMode} />
 
-          {/* Source Strictness Controls */}
-          <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 p-3 rounded-lg bg-neutral-950/40 border border-neutral-900">
-            <div className="flex items-center gap-2 text-xs font-mono text-neutral-400">
-              <Layers className="w-4 h-4 text-neutral-500" />
-              <span>Source Strictness Filter:</span>
-            </div>
-            <div className="flex gap-2">
-              {(['balanced', 'strict', 'reasoned'] as SourceStrictness[]).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setStrictness(st)}
-                  className={`px-3 py-1 rounded text-[10px] font-mono uppercase border transition-all ${
-                    strictness === st
-                      ? 'bg-neutral-900 text-white border-neutral-700'
-                      : 'bg-transparent text-neutral-500 border-transparent hover:border-neutral-800'
-                  }`}
-                >
-                  {st}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Interactive Form */}
           <StoryInput value={text} onChange={setText} onSubmit={handleGenerate} loading={loading} />
 
-          {/* Seed Examples (Only shown if no report or currently loading) */}
+          {/* Advanced settings — collapsed by default */}
+          <div className="max-w-3xl mx-auto">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-1.5 text-[11px] font-mono text-neutral-600 hover:text-neutral-400 transition-colors"
+            >
+              <Settings2 className="w-3 h-3" />
+              {showAdvanced ? 'Hide' : 'Advanced'} settings
+            </button>
+
+            {showAdvanced && (
+              <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 rounded-lg bg-neutral-950/40 border border-neutral-900">
+                <span className="text-xs font-mono text-neutral-500 flex-shrink-0">Source strictness:</span>
+                <div className="flex gap-2">
+                  {(['balanced', 'strict', 'lenient'] as SourceStrictness[]).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setStrictness(st)}
+                      className={`px-3 py-1 rounded text-[10px] font-mono uppercase border transition-all ${
+                        strictness === st
+                          ? 'bg-neutral-900 text-white border-neutral-700'
+                          : 'bg-transparent text-neutral-500 border-transparent hover:border-neutral-800'
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-neutral-600 sm:ml-auto">
+                  {strictness === 'strict' && 'Primary sources only — inferred claims are flagged.'}
+                  {strictness === 'balanced' && 'Mix of primary sources and reputable reporting.'}
+                  {strictness === 'lenient' && 'Accepts inferred and circumstantial evidence.'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Seed Examples */}
           {!report && !loading && (
             <DemoExamplePanel onSelect={handleSelectExample} />
           )}
@@ -143,11 +174,30 @@ export default function AppWorkspace() {
           </div>
         )}
 
-        {/* Report brief presentation */}
+        {/* Report */}
         {report && !loading && (
-          <div className="space-y-6">
-            <div className="text-xs font-mono uppercase tracking-widest text-neutral-500 text-center">
-              Generated Analysis Report
+          <div className="space-y-4">
+            <div className="flex items-center justify-between max-w-4xl mx-auto">
+              <div className="text-xs font-mono uppercase tracking-widest text-neutral-500">
+                Generated Analysis Report
+              </div>
+              <button
+                type="button"
+                onClick={handleShare}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-800 bg-neutral-950/40 text-xs text-neutral-400 hover:text-white hover:border-neutral-600 transition-all"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-400">Link copied</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-3.5 h-3.5" />
+                    Share
+                  </>
+                )}
+              </button>
             </div>
             <ReportBrief report={report} demoMode={demoMode} />
           </div>
@@ -159,5 +209,13 @@ export default function AppWorkspace() {
         OtherSide AI © 2026. All source notes strictly guarded for linguistic neutrality.
       </footer>
     </div>
+  );
+}
+
+export default function AppPage() {
+  return (
+    <Suspense fallback={null}>
+      <AppWorkspace />
+    </Suspense>
   );
 }
