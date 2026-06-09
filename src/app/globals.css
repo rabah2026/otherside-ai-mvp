@@ -54,42 +54,45 @@ html.ar * {
 
 /* Print / PDF export styles */
 @media print {
-  /* Hide everything except the report card */
-  body > * { display: none !important; }
-  .report-card { display: block !important; }
+  /* visibility trick: hide everything, then reveal only the report card and its children */
+  body * { visibility: hidden !important; }
+  .report-card,
+  .report-card * { visibility: visible !important; }
 
-  /* White background, dark text for paper readability */
-  html, body {
+  .report-card {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
     background: #ffffff !important;
     color: #111111 !important;
   }
 
-  .report-card {
-    background: #ffffff !important;
-    border: 1px solid #e5e7eb !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-  }
+  /* Remap text colours for white paper */
+  .report-card .text-neutral-200,
+  .report-card .text-neutral-300,
+  .report-card .text-white { color: #111111 !important; }
+  .report-card .text-neutral-400 { color: #374151 !important; }
+  .report-card .text-neutral-500,
+  .report-card .text-neutral-600 { color: #6b7280 !important; }
+  .report-card .text-amber-300 { color: #b45309 !important; }
 
-  /* Remap neutral colour classes to print-friendly dark-on-white */
-  .text-neutral-200, .text-neutral-300 { color: #111111 !important; }
-  .text-neutral-400 { color: #374151 !important; }
-  .text-neutral-500, .text-neutral-600 { color: #6b7280 !important; }
-  .text-white { color: #111111 !important; }
-  .text-amber-300 { color: #b45309 !important; }
+  /* Section backgrounds */
+  .report-card .bg-neutral-900\/20,
+  .report-card .bg-neutral-900\/30,
+  .report-card .bg-neutral-950\/40,
+  .report-card .glass-panel { background: #f9fafb !important; }
+  .report-card .bg-amber-950\/40 { background: #fef3c7 !important; }
+  .report-card .border-neutral-800\/40,
+  .report-card .border-neutral-800\/30,
+  .report-card .border-neutral-900 { border-color: #e5e7eb !important; }
 
-  /* Backgrounds */
-  .bg-neutral-900\/20, .bg-neutral-900\/30, .bg-neutral-950\/40 {
-    background: #f9fafb !important;
-  }
-  .bg-amber-950\/40 { background: #fef3c7 !important; }
-  .border-neutral-800\/40, .border-neutral-800\/30, .border-neutral-900 {
-    border-color: #e5e7eb !important;
-  }
-
-  /* Hide controls that make no sense on paper */
+  /* Hide controls */
   .no-print { display: none !important; }
 
   @page {
