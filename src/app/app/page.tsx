@@ -32,7 +32,12 @@ function AppWorkspace() {
     const autorun = searchParams.get('autorun') === '1';
 
     if (q) {
-      const decoded = decodeURIComponent(q);
+      let decoded: string;
+      try {
+        decoded = decodeURIComponent(q);
+      } catch {
+        decoded = q;
+      }
       setText(decoded);
       if (m && ['quick', 'deep', 'history'].includes(m)) setMode(m);
       if (autorun) handleGenerate(decoded);
