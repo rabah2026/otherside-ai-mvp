@@ -23,36 +23,89 @@ export default function ReportBrief({ report, demoMode }: Props) {
     window.print();
   };
 
+  const openReportWindow = () => {
+    // Fallback: render the report in a clean standalone window so user can screenshot it
+    const el = reportRef.current;
+    if (!el) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const allStyles = Array.from(document.querySelectorAll('style'))
+      .map(s => s.outerHTML).join('\n');
+    const linkStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+      .map(l => l.outerHTML).join('\n');
+    win.document.write(`<!DOCTYPE html>
+<html lang="${document.documentElement.lang}" dir="${document.documentElement.dir}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${t.nav_brand}</title>
+${linkStyles}
+${allStyles}
+<style>
+  html,body{background:#050508;margin:0;padding:16px;}
+  .no-print{display:none!important;}
+  .report-card{max-width:100%!important;}
+  #screenshot-tip{font-size:11px;color:#6b7280;font-family:monospace;text-align:center;padding:8px;border-bottom:1px solid #262626;margin:-16px -16px 16px;}
+</style>
+</head>
+<body>
+<div id="screenshot-tip">📸 Take a screenshot to save this report</div>
+${el.outerHTML}
+</body>
+</html>`);
+    win.document.close();
+  };
+
   const handleSavePNG = async () => {
     if (!reportRef.current || pngLoading) return;
     setPngLoading(true);
+
+    const el = reportRef.current;
+
+    // Patch: clone the element and strip backdrop-filter which crashes html2canvas
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.style.cssText += ';backdrop-filter:none;-webkit-backdrop-filter:none;background:#0d0d14;';
+    clone.querySelectorAll<HTMLElement>('*').forEach(child => {
+      const computed = getComputedStyle(child);
+      if (computed.backdropFilter !== 'none') {
+        child.style.backdropFilter = 'none';
+        (child.style as any).webkitBackdropFilter = 'none';
+      }
+    });
+    // Position off-screen, same width as original
+    clone.style.position = 'fixed';
+    clone.style.top = '-9999px';
+    clone.style.left = '0';
+    clone.style.width = el.offsetWidth + 'px';
+    clone.style.zIndex = '-1';
+    document.body.appendChild(clone);
+
     try {
       const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(reportRef.current, {
+      const canvas = await html2canvas(clone, {
         backgroundColor: '#050508',
-        // scale:1 respects device pixel ratio naturally; scale:2 on mobile causes out-of-memory
         scale: 1,
         useCORS: true,
         allowTaint: true,
+        foreignObjectRendering: false,
         logging: false,
       });
+      document.body.removeChild(clone);
 
       const filename = `otherside-report-${stableId}.png`;
-
-      // Prefer Web Share API with file (iOS 15+, modern Android)
       const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/png'));
       if (blob) {
         const file = new File([blob], filename, { type: 'image/png' });
+        // iOS / modern Android: share the file
         if (navigator.canShare?.({ files: [file] })) {
           try {
             await navigator.share({ files: [file], title: t.nav_brand });
             return;
           } catch (e: any) {
-            if (e.name === 'AbortError') return; // user cancelled
-            // share failed — fall through
+            if (e.name === 'AbortError') return;
           }
         }
-        // Desktop: anchor download
+        // Desktop: direct download
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.download = filename;
@@ -62,12 +115,12 @@ export default function ReportBrief({ report, demoMode }: Props) {
         document.body.removeChild(link);
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       } else {
-        // Last resort: open data URL in new tab — user can long-press (mobile) or right-click (desktop) to save
-        window.open(canvas.toDataURL('image/png'), '_blank');
+        openReportWindow();
       }
     } catch {
-      // If html2canvas itself failed (e.g. security error), open page in new tab
-      window.open(window.location.href, '_blank');
+      if (document.body.contains(clone)) document.body.removeChild(clone);
+      // html2canvas failed — open a clean window the user can screenshot
+      openReportWindow();
     } finally {
       setPngLoading(false);
     }
