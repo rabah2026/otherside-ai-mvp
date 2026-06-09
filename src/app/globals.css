@@ -54,46 +54,74 @@ html.ar * {
 
 /* Print / PDF export styles */
 @media print {
-  /* visibility trick: hide everything, then reveal only the report card and its children */
-  body * { visibility: hidden !important; }
-  .report-card,
-  .report-card * { visibility: visible !important; }
+  /* Hide all UI chrome — nav, input, footer, buttons */
+  .no-print { display: none !important; }
 
-  .report-card {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
+  /* White page — remove dark site background */
+  html, body {
     background: #ffffff !important;
     color: #111111 !important;
   }
+  .min-h-screen, [class*="flex-col"], [class*="flex-grow"] {
+    background: #ffffff !important;
+  }
 
-  /* Remap text colours for white paper */
+  /* Report card: clean white, no glass effect, full width, paginate normally */
+  .report-card {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border-radius: 8px !important;
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .glass-panel {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+    border-color: #d1d5db !important;
+  }
+
+  /* Text — dark on white */
+  .report-card .text-white,
   .report-card .text-neutral-200,
-  .report-card .text-neutral-300,
-  .report-card .text-white { color: #111111 !important; }
+  .report-card .text-neutral-300 { color: #111111 !important; }
   .report-card .text-neutral-400 { color: #374151 !important; }
   .report-card .text-neutral-500,
   .report-card .text-neutral-600 { color: #6b7280 !important; }
-  .report-card .text-amber-300 { color: #b45309 !important; }
+  .report-card .text-amber-300,
+  .report-card .text-amber-400 { color: #92400e !important; }
+  .report-card .text-emerald-400 { color: #065f46 !important; }
+  .report-card .text-violet-500 { color: #5b21b6 !important; }
 
-  /* Section backgrounds */
+  /* Section card backgrounds */
   .report-card .bg-neutral-900\/20,
   .report-card .bg-neutral-900\/30,
-  .report-card .bg-neutral-950\/40,
-  .report-card .glass-panel { background: #f9fafb !important; }
+  .report-card .bg-neutral-950\/40 { background: #f9fafb !important; }
   .report-card .bg-amber-950\/40 { background: #fef3c7 !important; }
+
+  /* Borders */
   .report-card .border-neutral-800\/40,
   .report-card .border-neutral-800\/30,
   .report-card .border-neutral-900 { border-color: #e5e7eb !important; }
+  .report-card .border-neutral-700 { border-color: #9ca3af !important; }
 
-  /* Hide controls */
-  .no-print { display: none !important; }
+  /* Divider */
+  .thin-divider { background: #e5e7eb !important; }
+
+  /* Dot indicators */
+  .report-card .bg-emerald-500\/80 { background: #10b981 !important; }
+  .report-card .bg-violet-500\/70 { background: #7c3aed !important; }
+  .report-card .bg-amber-500\/70 { background: #f59e0b !important; }
+
+  /* Avoid splitting sections mid-page */
+  .report-card section,
+  .report-card > div > div { page-break-inside: avoid; }
 
   @page {
     margin: 1.5cm;
