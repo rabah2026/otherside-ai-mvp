@@ -115,7 +115,7 @@ export default function AppWorkspace() {
           </div>
 
           {/* Interactive Form */}
-          <StoryInput onSubmit={handleGenerate} loading={loading} />
+          <StoryInput value={text} onChange={setText} onSubmit={handleGenerate} loading={loading} />
 
           {/* Seed Examples (Only shown if no report or currently loading) */}
           {!report && !loading && (
