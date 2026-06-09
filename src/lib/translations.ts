@@ -136,6 +136,13 @@ export interface Translations {
   about_disclaimer_title: string;
   about_disclaimer_body: string;
   about_launch_btn: string;
+  // Export
+  report_export_pdf: string;
+  report_export_png: string;
+  // New report sections
+  report_logical_leaps_title: string;
+  report_evidence_gaps_title: string;
+  report_source_by: string;
   // Language toggle
   lang_switch: string;
 }
@@ -260,6 +267,11 @@ const en: Translations = {
   about_disclaimer_title: 'Disclaimer Note:',
   about_disclaimer_body: 'OtherSide AI is designed as a neutral reference synthesis engine. It does not replace independent legal, financial, or primary academic research. Use responsibly.',
   about_launch_btn: 'Launch workspace',
+  report_export_pdf: 'Save as PDF',
+  report_export_png: 'Save as Image',
+  report_logical_leaps_title: 'Unstated Assumptions',
+  report_evidence_gaps_title: 'Key Evidence Gaps',
+  report_source_by: 'by',
   lang_switch: 'العربية',
 };
 
@@ -383,6 +395,11 @@ const ar: Translations = {
   about_disclaimer_title: 'ملاحظة إخلاء المسؤولية:',
   about_disclaimer_body: 'صُمم أوذر سايد كمحرك تركيبي محايد للمراجع. لا يحل محل البحث القانوني أو المالي أو الأكاديمي المستقل. استخدم بمسؤولية.',
   about_launch_btn: 'افتح منصة البحث',
+  report_export_pdf: 'حفظ كـ PDF',
+  report_export_png: 'حفظ كصورة',
+  report_logical_leaps_title: 'الافتراضات الضمنية',
+  report_evidence_gaps_title: 'الثغرات الدليلية الرئيسية',
+  report_source_by: 'بقلم',
   lang_switch: 'English',
 };
 

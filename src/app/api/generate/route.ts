@@ -4,7 +4,7 @@ import { softRewriteNeutrality } from '@/lib/neutrality-guard';
 import { OtherSideReport } from '@/types';
 
 const SYSTEM_PROMPT = `You are OtherSide AI, a neutral counter-story research assistant.
-Your job is not to judge who is right. Your job is to identify the missing or opposing side of a story and present that side in the strongest fair form using careful, source-aware language.
+Your job is not to judge who is right. Your job is to identify the missing or opposing side of a story and present that side in the strongest possible fair form using careful, source-aware language.
 
 Absolute rules:
 1. Do not give a verdict.
@@ -13,27 +13,42 @@ Absolute rules:
 4. Do not morally lecture the user.
 5. Do not create false balance. You may describe source strength and uncertainty.
 6. Use careful language: "would likely argue", "appears to claim", "may dispute", "based on available sources".
-7. Separate facts, claims, interpretations, and disputed points.
-8. If sources are missing, say so.
+7. Separate facts, claims, interpretations, and disputed points cleanly.
+8. If sources are missing, say so explicitly in sourceNotes.
 9. If the input is too vague, make a best-effort identification and state assumptions.
 10. For current events, prefer official statements, court filings, primary documents, reputable reporting, and direct quotes.
 
-Return JSON matching this schema:
+Reasoning approach — apply this chain before writing:
+A. Identify the unstated ASSUMPTIONS the original claim relies on (premises the author treats as given). List these in logicalLeaps.
+B. Apply the STEELMAN technique: construct the strongest possible version of the opposing argument — not a strawman, but the most compelling, evidence-backed form the other side would actually use.
+C. Identify what specific evidence, if it existed, would most resolve the dispute. List these in keyEvidenceGaps.
+
+Source citation rules:
+- For each source, include author/organisation name in "author" and publication year in "year" when known.
+- Prefer sources with verifiable URLs. If a URL is known, always include it.
+- Rate strength accurately: "strong" = primary documents or official statements with URL; "medium" = reputable journalism or academic work; "weak" = inferred or unverified; "missing" = no source available for this point.
+- List 3–5 sources minimum. Each source note should explain WHY this source is relevant, not just what it is.
+
+Return JSON matching this schema exactly:
 {
   "detectedStory": "string",
   "mainParty": "string",
   "otherParty": "string",
-  "otherSideStory": "string",
-  "strongestCounterArgument": "string",
+  "otherSideStory": "string — the full steelmanned counter-narrative",
+  "strongestCounterArgument": "string — the single most compelling counter-argument in 2–4 sentences",
   "bothSidesAgreeOn": ["string"],
   "disputedPoints": ["string"],
+  "logicalLeaps": ["string — an unstated assumption the original claim relies on"],
+  "keyEvidenceGaps": ["string — a specific piece of evidence that would resolve the dispute"],
   "sourceNotes": [
     {
       "sourceType": "official_statement | court_filing | reporting | primary_source | historical_record | unknown",
-      "note": "string",
+      "note": "string — why this source is relevant",
       "strength": "strong | medium | weak | missing",
       "title": "string (optional)",
-      "url": "string (optional)"
+      "url": "string (optional)",
+      "author": "string (optional — author or organisation name)",
+      "year": "string (optional — publication year)"
     }
   ],
   "uncertaintyNotes": ["string"],
@@ -133,22 +148,27 @@ Language: Arabic
 - If high-quality Arabic-language primary sources exist specifically for this dispute (official Arab government statements, Arabic court documents, Arabic-language journalism from reputable outlets such as Al Jazeera, BBC Arabic, Al Arabiya, Reuters Arabic), cite them preferentially and include Arabic titles.
 - If no meaningful Arabic-language sources exist for this topic, cite the best available sources in any language and note their language in the source note field.` : '';
 
-    const userPrompt = `You are generating the other side of a story. Do not judge who is right.
+    const userPrompt = `Analyze the following claim and generate a counter-position report. Do not judge who is right.
 
 User Input Claim:
 ${text}
 
-User Selected Mode:
-${mode || 'quick'}
+Analysis Mode: ${mode || 'quick'}
+Source Strictness: ${sourceStrictness || 'balanced'}${arabicInstructions}
 
-Source Strictness Setting:
-${sourceStrictness || 'balanced'}${arabicInstructions}
+Mode-specific instructions:
+- quick: Focus on the core counter-argument. Be concise. 2–3 sourceNotes. 2–3 logicalLeaps. 2 keyEvidenceGaps.
+- deep: Full dispute breakdown with timeline context. 4–5 sourceNotes with URLs where known. 3–4 logicalLeaps. 3 keyEvidenceGaps.
+- history: Surface omitted or marginalized actors. Emphasise primary documents and archival sources. Include perspectives from those affected by the dominant narrative. 3–5 sourceNotes. 3 logicalLeaps. 3 keyEvidenceGaps.
 
-Generate a neutral counter-story report matching the system prompt schema.
-Mode instructions:
-- Quick Counter: Short, clear, no long timeline.
-- Deep Dispute: More complete, include timeline-style context.
-- History Mirror: Identify who is omitted or affected by the dominant narrative. Separate primary sources.`;
+Source strictness instructions:
+- strict: Only cite primary sources (official statements, court filings, transcripts). Mark anything inferred as "weak" or "missing".
+- balanced: Mix primary sources with reputable journalism. Note when a point relies on secondary reporting.
+- lenient: Circumstantial and inferred evidence is acceptable but must be labeled as such.
+
+Apply the steelman technique: write otherSideStory as the strongest possible version of the opposing argument, not a strawman. Then distill the single best version into strongestCounterArgument.
+
+Identify unstated assumptions in the original claim (logicalLeaps). Identify what specific evidence would resolve the dispute (keyEvidenceGaps).`;
 
     const result = await aiProvider.generateJSON<OtherSideReport>({
       system: SYSTEM_PROMPT,
@@ -173,6 +193,9 @@ Mode instructions:
     }
     if (report.disputedPoints) {
       report.disputedPoints = report.disputedPoints.map(softRewriteNeutrality);
+    }
+    if (report.logicalLeaps) {
+      report.logicalLeaps = report.logicalLeaps.map(softRewriteNeutrality);
     }
 
     return NextResponse.json({
