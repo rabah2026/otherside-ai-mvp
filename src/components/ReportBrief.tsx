@@ -5,7 +5,7 @@ import { OtherSideReport } from '@/types';
 import NeutralityBadge from './NeutralityBadge';
 import EvidenceStrip from './EvidenceStrip';
 import DisputedPoints from './DisputedPoints';
-import { ShieldCheck, Scale, AlertCircle, FileText, CheckCircle2, FlaskConical } from 'lucide-react';
+import { ShieldCheck, Scale, AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
 
 interface Props {
   report: OtherSideReport;
@@ -20,7 +20,7 @@ export default function ReportBrief({ report, demoMode }: Props) {
       {/* Demo mode warning banner — shown prominently above everything */}
       {demoMode && (
         <div className="flex items-start gap-3 px-6 py-4 bg-amber-950/40 border-b border-amber-800/40">
-          <FlaskConical className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+          <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
           <div className="text-xs text-amber-300 leading-relaxed">
             <span className="font-semibold uppercase tracking-wider">Sample Report — No AI provider connected.</span>
             {' '}This output is a pre-written example, not a live analysis. To generate real reports, configure{' '}
