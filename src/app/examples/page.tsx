@@ -1,7 +1,11 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import ReportBrief from '@/components/ReportBrief';
+import LanguageToggle from '@/components/LanguageToggle';
 import { OtherSideReport } from '@/types';
+import { useLang } from '@/context/LanguageContext';
 
 const OPENAI_MOCK: OtherSideReport = {
   detectedStory: "The pasted story claims that OpenAI betrayed its original nonprofit mission and became too commercially aligned with Microsoft.",
@@ -127,49 +131,40 @@ const APPLE_EPIC_MOCK: OtherSideReport = {
   neutralNote: "This is not a verdict. It presents the other side's argument without judging who is right."
 };
 
-const EXAMPLES = [
-  {
-    label: "Example 1: The OpenAI Restructuring Dispute",
-    report: OPENAI_MOCK,
-  },
-  {
-    label: "Example 2: The Galileo Trial (1633)",
-    report: GALILEO_MOCK,
-  },
-  {
-    label: "Example 3: Apple vs Epic Games — App Store Antitrust",
-    report: APPLE_EPIC_MOCK,
-  },
-];
-
 export default function Examples() {
+  const { t } = useLang();
+
+  const EXAMPLES = [
+    { label: t.examples_ex1_label, report: OPENAI_MOCK },
+    { label: t.examples_ex2_label, report: GALILEO_MOCK },
+    { label: t.examples_ex3_label, report: APPLE_EPIC_MOCK },
+  ];
+
   return (
     <div className="min-h-screen bg-[#050508] text-neutral-300 relative overflow-hidden">
       <div className="glow-beam" />
 
       <div className="max-w-4xl mx-auto px-4 py-20 relative z-10 space-y-12">
-        {/* Navigation */}
         <div className="flex justify-between items-center border-b border-neutral-900 pb-6">
           <Link href="/" className="font-serif text-white hover:text-neutral-400 font-semibold tracking-wide">
-            OtherSide AI
+            {t.nav_brand}
           </Link>
-          <div className="space-x-4 text-xs font-mono">
-            <Link href="/app" className="hover:text-white">Workspace</Link>
-            <Link href="/about" className="hover:text-white">Neutrality Policy</Link>
+          <div className="flex items-center gap-3 text-xs font-mono">
+            <Link href="/app" className="hover:text-white">{t.nav_workspace}</Link>
+            <Link href="/about" className="hover:text-white">{t.nav_neutrality_policy}</Link>
+            <LanguageToggle />
           </div>
         </div>
 
-        {/* Title */}
-        <div className="space-y-3 text-center sm:text-left">
+        <div className="space-y-3 text-center sm:text-start">
           <h1 className="text-3xl sm:text-4xl font-serif text-white tracking-tight">
-            Sample Reports
+            {t.examples_title}
           </h1>
           <p className="text-sm text-neutral-500 max-w-xl">
-            Pre-written examples showing how OtherSide AI structures a counter-position report. These are not live AI outputs — they demonstrate the report format.
+            {t.examples_desc}
           </p>
         </div>
 
-        {/* Example Renders */}
         <div className="space-y-16">
           {EXAMPLES.map((ex) => (
             <div key={ex.label} className="space-y-4">
@@ -181,14 +176,13 @@ export default function Examples() {
           ))}
         </div>
 
-        {/* CTA */}
         <div className="pt-8 text-center space-y-3 border-t border-neutral-900">
-          <p className="text-sm text-neutral-500">Ready to analyze your own claim?</p>
+          <p className="text-sm text-neutral-500">{t.examples_cta_q}</p>
           <Link
             href="/app"
             className="inline-block px-6 py-3 bg-white text-black text-xs font-semibold rounded-lg tracking-wider uppercase hover:bg-neutral-200 transition-colors"
           >
-            Open the Workspace
+            {t.examples_cta_btn}
           </Link>
         </div>
       </div>

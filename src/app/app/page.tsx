@@ -7,10 +7,13 @@ import ModeSelector from '@/components/ModeSelector';
 import StoryInput from '@/components/StoryInput';
 import ReportBrief from '@/components/ReportBrief';
 import DemoExamplePanel from '@/components/DemoExamplePanel';
+import LanguageToggle from '@/components/LanguageToggle';
 import { OtherSideMode, OtherSideReport, SourceStrictness } from '@/types';
 import { ShieldAlert, RefreshCw, Settings2, Share2, Check } from 'lucide-react';
+import { useLang } from '@/context/LanguageContext';
 
 function AppWorkspace() {
+  const { t, lang } = useLang();
   const [mode, setMode] = useState<OtherSideMode>('quick');
   const [strictness, setStrictness] = useState<SourceStrictness>('balanced');
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -50,7 +53,7 @@ function AppWorkspace() {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: inputText, mode, sourceStrictness: strictness }),
+        body: JSON.stringify({ text: inputText, mode, sourceStrictness: strictness, language: lang }),
       });
 
       if (!res.ok) throw new Error('Failed to generate report');
@@ -91,11 +94,12 @@ function AppWorkspace() {
         <div className="flex justify-between items-center border-b border-neutral-900 pb-4">
           <Link href="/" className="font-serif text-white hover:text-neutral-400 font-semibold tracking-wide flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded bg-white" />
-            OtherSide AI
+            {t.nav_brand}
           </Link>
-          <div className="space-x-4 text-xs font-mono">
-            <Link href="/about" className="hover:text-white">Neutrality Policy</Link>
-            <Link href="/examples" className="hover:text-white">Examples</Link>
+          <div className="flex items-center gap-3 text-xs font-mono">
+            <Link href="/about" className="hover:text-white">{t.nav_neutrality_policy}</Link>
+            <Link href="/examples" className="hover:text-white">{t.nav_examples}</Link>
+            <LanguageToggle />
           </div>
         </div>
 
@@ -103,20 +107,17 @@ function AppWorkspace() {
         <div className="space-y-5">
           <div className="text-center space-y-1">
             <h1 className="text-2xl sm:text-3xl font-serif text-white font-semibold">
-              Research Workspace
+              {t.workspace_title}
             </h1>
             <p className="text-xs text-neutral-500 font-mono">
-              ENTER AN INCOMING CLAIM TO START THE EXTRACTION
+              {t.workspace_subtitle}
             </p>
           </div>
 
-          {/* Mode Selector */}
           <ModeSelector selected={mode} onChange={setMode} />
-
-          {/* Interactive Form */}
           <StoryInput value={text} onChange={setText} onSubmit={handleGenerate} loading={loading} />
 
-          {/* Advanced settings — collapsed by default */}
+          {/* Advanced settings */}
           <div className="max-w-3xl mx-auto">
             <button
               type="button"
@@ -124,12 +125,12 @@ function AppWorkspace() {
               className="flex items-center gap-1.5 text-[11px] font-mono text-neutral-600 hover:text-neutral-400 transition-colors"
             >
               <Settings2 className="w-3 h-3" />
-              {showAdvanced ? 'Hide' : 'Advanced'} settings
+              {showAdvanced ? t.workspace_advanced_hide : t.workspace_advanced}
             </button>
 
             {showAdvanced && (
               <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center gap-3 p-3 rounded-lg bg-neutral-950/40 border border-neutral-900">
-                <span className="text-xs font-mono text-neutral-500 flex-shrink-0">Source strictness:</span>
+                <span className="text-xs font-mono text-neutral-500 flex-shrink-0">{t.workspace_strictness_label}</span>
                 <div className="flex gap-2">
                   {(['balanced', 'strict', 'lenient'] as SourceStrictness[]).map((st) => (
                     <button
@@ -142,20 +143,19 @@ function AppWorkspace() {
                           : 'bg-transparent text-neutral-500 border-transparent hover:border-neutral-800'
                       }`}
                     >
-                      {st}
+                      {st === 'balanced' ? t.workspace_balanced : st === 'strict' ? t.workspace_strict : t.workspace_lenient}
                     </button>
                   ))}
                 </div>
-                <p className="text-[10px] text-neutral-600 sm:ml-auto">
-                  {strictness === 'strict' && 'Primary sources only — inferred claims are flagged.'}
-                  {strictness === 'balanced' && 'Mix of primary sources and reputable reporting.'}
-                  {strictness === 'lenient' && 'Accepts inferred and circumstantial evidence.'}
+                <p className="text-[10px] text-neutral-600 sm:ms-auto">
+                  {strictness === 'strict' && t.workspace_strict_desc}
+                  {strictness === 'balanced' && t.workspace_balanced_desc}
+                  {strictness === 'lenient' && t.workspace_lenient_desc}
                 </p>
               </div>
             )}
           </div>
 
-          {/* Seed Examples */}
           {!report && !loading && (
             <DemoExamplePanel onSelect={handleSelectExample} />
           )}
@@ -166,7 +166,7 @@ function AppWorkspace() {
           <div className="py-20 text-center space-y-4">
             <RefreshCw className="w-8 h-8 text-neutral-500 animate-spin mx-auto" />
             <p className="text-xs font-mono text-neutral-500">
-              COMPILING SOURCE INDEXES AND REWRITING PERSPECTIVES...
+              {t.workspace_loading}
             </p>
           </div>
         )}
@@ -176,7 +176,7 @@ function AppWorkspace() {
           <div className="max-w-3xl mx-auto p-4 rounded-lg bg-rose-950/30 border border-rose-900/40 text-rose-400 text-xs flex gap-2 items-start">
             <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold">Error:</span> {error}
+              <span className="font-semibold">{t.workspace_error_prefix}</span> {error}
             </div>
           </div>
         )}
@@ -186,7 +186,7 @@ function AppWorkspace() {
           <div className="space-y-4">
             <div className="flex items-center justify-between max-w-4xl mx-auto">
               <div className="text-xs font-mono uppercase tracking-widest text-neutral-500">
-                Generated Analysis Report
+                {t.workspace_report_label}
               </div>
               <button
                 type="button"
@@ -196,12 +196,12 @@ function AppWorkspace() {
                 {copied ? (
                   <>
                     <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-emerald-400">Link copied</span>
+                    <span className="text-emerald-400">{t.workspace_copied}</span>
                   </>
                 ) : (
                   <>
                     <Share2 className="w-3.5 h-3.5" />
-                    Share
+                    {t.workspace_share}
                   </>
                 )}
               </button>
@@ -213,7 +213,7 @@ function AppWorkspace() {
 
       {/* Footer */}
       <footer className="py-6 border-t border-neutral-900 text-center text-[10px] text-neutral-600">
-        OtherSide AI © 2026. All source notes strictly guarded for linguistic neutrality.
+        {t.workspace_footer}
       </footer>
     </div>
   );

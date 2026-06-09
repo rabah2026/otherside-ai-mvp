@@ -1,19 +1,23 @@
+'use client';
+
 import React from 'react';
 import { SourceNote } from '@/types';
 import SourceStrengthBadge from './SourceStrengthBadge';
 import { FileText, Link as LinkIcon, BookOpen } from 'lucide-react';
+import { useLang } from '@/context/LanguageContext';
 
 interface Props {
   sources: SourceNote[];
 }
 
 export default function EvidenceStrip({ sources }: Props) {
+  const { t } = useLang();
   if (!sources || sources.length === 0) return null;
 
   return (
     <div className="space-y-3">
       <h3 className="text-xs uppercase tracking-wider text-neutral-500 font-semibold flex items-center gap-1.5">
-        <BookOpen className="w-3.5 h-3.5" /> Checked Reference Sources
+        <BookOpen className="w-3.5 h-3.5" /> {t.evidence_title}
       </h3>
       <div className="grid gap-3 sm:grid-cols-2">
         {sources.map((src, idx) => (

@@ -121,10 +121,17 @@ function getMockReport(text: string): OtherSideReport {
 
 export async function POST(req: Request) {
   try {
-    const { text, mode, sourceStrictness } = await req.json();
+    const { text, mode, sourceStrictness, language } = await req.json();
     if (!text) {
       return NextResponse.json({ error: 'Text input is required' }, { status: 400 });
     }
+
+    const arabicInstructions = language === 'ar' ? `
+
+Language: Arabic
+- Write ALL JSON string fields in Arabic (Modern Standard Arabic / الفصحى). Every field — detectedStory, mainParty, otherParty, otherSideStory, strongestCounterArgument, bothSidesAgreeOn items, disputedPoints items, sourceNotes notes, uncertaintyNotes items, neutralNote — must be in Arabic.
+- If high-quality Arabic-language primary sources exist specifically for this dispute (official Arab government statements, Arabic court documents, Arabic-language journalism from reputable outlets such as Al Jazeera, BBC Arabic, Al Arabiya, Reuters Arabic), cite them preferentially and include Arabic titles.
+- If no meaningful Arabic-language sources exist for this topic, cite the best available sources in any language and note their language in the source note field.` : '';
 
     const userPrompt = `You are generating the other side of a story. Do not judge who is right.
 
@@ -135,7 +142,7 @@ User Selected Mode:
 ${mode || 'quick'}
 
 Source Strictness Setting:
-${sourceStrictness || 'balanced'}
+${sourceStrictness || 'balanced'}${arabicInstructions}
 
 Generate a neutral counter-story report matching the system prompt schema.
 Mode instructions:
