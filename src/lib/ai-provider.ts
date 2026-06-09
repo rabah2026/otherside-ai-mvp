@@ -56,6 +56,13 @@ export const aiProvider: AIProvider = {
         contentText = lines.join('\n').trim();
       }
 
+      // Slice out actual JSON payload if LLM added preamble like "Here is the JSON:"
+      const firstCurly = contentText.indexOf('{');
+      const lastCurly = contentText.lastIndexOf('}');
+      if (firstCurly !== -1 && lastCurly !== -1 && lastCurly > firstCurly) {
+        contentText = contentText.substring(firstCurly, lastCurly + 1);
+      }
+
       const parsed = JSON.parse(contentText);
       return { data: parsed as T, demoMode: false };
     } catch (e) {
