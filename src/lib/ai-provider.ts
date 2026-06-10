@@ -49,7 +49,9 @@ async function callAnthropic<T>(system: string, prompt: string): Promise<T> {
 async function callOpenAICompat<T>(system: string, prompt: string): Promise<T> {
   const apiBase = process.env.AI_API_BASE_URL || 'http://localhost:1234/v1';
   const apiKey = process.env.OPENAI_API_KEY || 'no-key-required';
-  const model = process.env.AI_MODEL || 'gpt-4o';
+  const isGroq = apiBase.includes('groq.com');
+  // Qwen3 handles Arabic far better than Llama among Groq-hosted models
+  const model = process.env.AI_MODEL || (isGroq ? 'qwen/qwen3-32b' : 'gpt-4o');
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 55000);
@@ -70,8 +72,8 @@ async function callOpenAICompat<T>(system: string, prompt: string): Promise<T> {
           { role: 'user', content: prompt },
         ],
         temperature: 0.1,
-        // OpenRouter routing hints (ignored by standard OpenAI endpoints)
-        route: 'fallback',
+        // Groq: suppress Qwen3 <think> reasoning blocks in the response
+        ...(isGroq && model.includes('qwen') ? { reasoning_format: 'hidden' } : {}),
       }),
       signal: controller.signal,
     });
@@ -93,7 +95,8 @@ async function callOpenAICompat<T>(system: string, prompt: string): Promise<T> {
 }
 
 function parseJSONContent<T>(raw: string): T {
-  let text = raw.trim();
+  // Strip reasoning blocks emitted by thinking models (Qwen3, DeepSeek R1)
+  let text = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
   // Strip markdown code fences
   if (text.startsWith('```')) {

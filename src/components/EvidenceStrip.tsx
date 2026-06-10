@@ -14,6 +14,18 @@ export default function EvidenceStrip({ sources }: Props) {
   const { t } = useLang();
   if (!sources || sources.length === 0) return null;
 
+  const sourceTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      official_statement: t.source_type_official_statement,
+      court_filing: t.source_type_court_filing,
+      reporting: t.source_type_reporting,
+      primary_source: t.source_type_primary_source,
+      historical_record: t.source_type_historical_record,
+      unknown: t.source_type_unknown,
+    };
+    return labels[type] ?? type.replace(/_/g, ' ');
+  };
+
   return (
     <div className="space-y-3">
       <h3 className="text-xs uppercase tracking-wider text-neutral-500 font-semibold flex items-center gap-1.5">
@@ -25,7 +37,7 @@ export default function EvidenceStrip({ sources }: Props) {
             <div>
               <div className="flex items-center justify-between gap-2 mb-1.5">
                 <span className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">
-                  {src.sourceType.replace(/_/g, ' ')}
+                  {sourceTypeLabel(src.sourceType)}
                 </span>
                 <SourceStrengthBadge strength={src.strength} />
               </div>
@@ -37,10 +49,10 @@ export default function EvidenceStrip({ sources }: Props) {
                   <FileText className="w-3 h-3 text-neutral-500 flex-shrink-0" />
                   {src.url ? (
                     <a href={src.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 hover:underline">
-                      {src.title} <LinkIcon className="w-2.5 h-2.5 ms-0.5" />
+                      <span dir="auto">{src.title}</span> <LinkIcon className="w-2.5 h-2.5 ms-0.5" />
                     </a>
                   ) : (
-                    <span>{src.title}</span>
+                    <span dir="auto">{src.title}</span>
                   )}
                 </div>
               )}
@@ -48,14 +60,14 @@ export default function EvidenceStrip({ sources }: Props) {
                 <div className="flex items-center gap-3 text-[10px] text-neutral-600">
                   {src.author && (
                     <span className="flex items-center gap-1">
-                      <User className="w-2.5 h-2.5" />
-                      {src.author}
+                      <User className="w-2.5 h-2.5 flex-shrink-0" />
+                      <span dir="auto">{src.author}</span>
                     </span>
                   )}
                   {src.year && (
                     <span className="flex items-center gap-1">
-                      <Calendar className="w-2.5 h-2.5" />
-                      {src.year}
+                      <Calendar className="w-2.5 h-2.5 flex-shrink-0" />
+                      <span dir="ltr">{src.year}</span>
                     </span>
                   )}
                 </div>
