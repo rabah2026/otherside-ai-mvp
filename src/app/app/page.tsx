@@ -40,6 +40,7 @@ export default function AppWorkspace() {
           text: inputText,
           mode,
           sourceStrictness: strictness,
+          lang,
         }),
       });
 

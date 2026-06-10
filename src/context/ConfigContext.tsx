@@ -129,8 +129,13 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
     if (savedLang) setLangState(savedLang);
     if (savedTheme) {
       setThemeState(savedTheme);
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+      if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     } else {
+      setThemeState('dark');
       document.documentElement.classList.add('dark');
     }
   }, []);
@@ -143,7 +148,11 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
   const setTheme = (newTheme: Theme) => {
     setThemeState(newTheme);
     localStorage.setItem('os-theme', newTheme);
-    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+    if (newTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   };
 
   const t = (key: string) => {
