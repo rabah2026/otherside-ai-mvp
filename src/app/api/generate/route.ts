@@ -143,8 +143,11 @@ export async function POST(req: Request) {
 
     const languageInstructions = language === 'ar' ? `
 
-Language: Arabic
-- Write ALL JSON string fields in Arabic (Modern Standard Arabic / الفصحى). Every field — detectedStory, mainParty, otherParty, otherSideStory, strongestCounterArgument, bothSidesAgreeOn items, disputedPoints items, sourceNotes notes, uncertaintyNotes items, neutralNote — must be in Arabic.
+Language: Arabic (STRICT)
+- Write ALL JSON string fields in Arabic (Modern Standard Arabic / الفصحى). Every field — detectedStory, mainParty, otherParty, otherSideStory, strongestCounterArgument, bothSidesAgreeOn items, disputedPoints items, logicalLeaps items, keyEvidenceGaps items, sourceNotes notes, uncertaintyNotes items, neutralNote — must be in Arabic.
+- ABSOLUTELY FORBIDDEN: mixing any non-Arabic word inside an Arabic sentence. Never write Latin, English, Czech, or any foreign-script word inside Arabic text (e.g. never "الclaim", "الvojna", "يPRESENT"). Use the Arabic word: claim = ادعاء, war = حرب, nexus = صلة, present = يعرض.
+- Exception: proper nouns only (ESPN, FIFA, names of people/organisations) may stay in their original script.
+- Before returning the JSON, re-read every Arabic field and replace any accidental foreign word with its Arabic equivalent.
 - If high-quality Arabic-language primary sources exist specifically for this dispute (official Arab government statements, Arabic court documents, Arabic-language journalism from reputable outlets such as Al Jazeera, BBC Arabic, Al Arabiya, Reuters Arabic), cite them preferentially and include Arabic titles.
 - If no meaningful Arabic-language sources exist for this topic, cite the best available sources in any language and note their language in the source note field.` : `
 
@@ -171,7 +174,13 @@ Source strictness instructions:
 
 Apply the steelman technique: write otherSideStory as the strongest possible version of the opposing argument, not a strawman. Then distill the single best version into strongestCounterArgument.
 
-Identify unstated assumptions in the original claim (logicalLeaps). Identify what specific evidence would resolve the dispute (keyEvidenceGaps).`;
+Identify unstated assumptions in the original claim (logicalLeaps). Identify what specific evidence would resolve the dispute (keyEvidenceGaps).
+
+Quality rules — violations make the report worthless:
+- NEVER repeat the same sentence or near-identical phrasing across different sections. Each section must add NEW information.
+- keyEvidenceGaps must name CONCRETE evidence (a specific document, archive, testimony, dataset) — never a circular restatement of the claim like "strong evidence that X happened".
+- Each sourceNote must name a real, specific source (publication name, document title, institution) and explain its relevance — never a generic placeholder like "a report from a sports website".
+- strongestCounterArgument must be a coherent connected argument, not disconnected statements.`;
 
     const result = await aiProvider.generateJSON<OtherSideReport>({
       system: SYSTEM_PROMPT,

@@ -143,6 +143,17 @@ export interface Translations {
   report_logical_leaps_title: string;
   report_evidence_gaps_title: string;
   report_source_by: string;
+  // Source badges
+  strength_strong: string;
+  strength_medium: string;
+  strength_weak: string;
+  strength_missing: string;
+  source_type_official_statement: string;
+  source_type_court_filing: string;
+  source_type_reporting: string;
+  source_type_primary_source: string;
+  source_type_historical_record: string;
+  source_type_unknown: string;
   // Language toggle
   lang_switch: string;
 }
@@ -272,6 +283,16 @@ const en: Translations = {
   report_logical_leaps_title: 'Unstated Assumptions',
   report_evidence_gaps_title: 'Key Evidence Gaps',
   report_source_by: 'by',
+  strength_strong: 'Strong source',
+  strength_medium: 'Medium source',
+  strength_weak: 'Weak source',
+  strength_missing: 'Missing source',
+  source_type_official_statement: 'Official statement',
+  source_type_court_filing: 'Court filing',
+  source_type_reporting: 'Reporting',
+  source_type_primary_source: 'Primary source',
+  source_type_historical_record: 'Historical record',
+  source_type_unknown: 'Unverified source',
   lang_switch: 'العربية',
 };
 
@@ -400,6 +421,16 @@ const ar: Translations = {
   report_logical_leaps_title: 'افتراضات غير مُعلنة',
   report_evidence_gaps_title: 'أدلة مفقودة مهمة',
   report_source_by: 'بقلم',
+  strength_strong: 'مصدر قوي',
+  strength_medium: 'مصدر متوسط',
+  strength_weak: 'مصدر ضعيف',
+  strength_missing: 'بلا مصدر',
+  source_type_official_statement: 'بيان رسمي',
+  source_type_court_filing: 'وثيقة قضائية',
+  source_type_reporting: 'تغطية صحفية',
+  source_type_primary_source: 'مصدر أولي',
+  source_type_historical_record: 'سجل تاريخي',
+  source_type_unknown: 'مصدر غير محدد',
   lang_switch: 'English',
 };
 

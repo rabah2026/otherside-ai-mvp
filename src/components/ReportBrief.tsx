@@ -45,7 +45,7 @@ export default function ReportBrief({ report, demoMode }: Props) {
             </h2>
           </div>
           <div className="text-xs text-neutral-500 font-mono space-y-0.5 text-start sm:text-end">
-            <div>{t.report_id_prefix} OB-{stableId}</div>
+            <div>{t.report_id_prefix} <span dir="ltr" className="inline-block">OB-{stableId}</span></div>
             <div>{t.report_classification}</div>
           </div>
         </div>

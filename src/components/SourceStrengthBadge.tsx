@@ -1,11 +1,16 @@
+'use client';
+
 import React from 'react';
 import { SourceStrength } from '@/types';
+import { useLang } from '@/context/LanguageContext';
 
 interface Props {
   strength: SourceStrength;
 }
 
 export default function SourceStrengthBadge({ strength }: Props) {
+  const { t } = useLang();
+
   const getColors = () => {
     switch (strength) {
       case 'strong':
@@ -20,9 +25,16 @@ export default function SourceStrengthBadge({ strength }: Props) {
     }
   };
 
+  const label = {
+    strong: t.strength_strong,
+    medium: t.strength_medium,
+    weak: t.strength_weak,
+    missing: t.strength_missing,
+  }[strength] ?? t.strength_missing;
+
   return (
     <span className={`inline-block px-2 py-0.5 text-[10px] font-medium rounded border ${getColors()} uppercase tracking-wider`}>
-      {strength} source
+      {label}
     </span>
   );
 }
