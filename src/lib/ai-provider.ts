@@ -60,11 +60,17 @@ async function callOpenAICompat<T>(system: string, prompt: string): Promise<T> {
     ? envModel
     : defaultModel;
 
+  // Strip trailing slash so we never produce double-slash paths
+  const base = apiBase.replace(/\/$/, '');
+  const chatUrl = `${base}/chat/completions`;
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 55000);
 
+  console.info(`[ai-provider] → ${chatUrl} (model: ${model})`);
+
   try {
-    const response = await fetch(`${apiBase}/chat/completions`, {
+    const response = await fetch(chatUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -88,7 +94,7 @@ async function callOpenAICompat<T>(system: string, prompt: string): Promise<T> {
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      throw new Error(`OpenAI-compat API ${response.status}: ${body}`);
+      throw new Error(`API ${response.status} at ${chatUrl} (model: ${model}): ${body.substring(0, 300)}`);
     }
 
     const resJson = await response.json();
