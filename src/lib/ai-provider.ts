@@ -11,8 +11,11 @@ export const aiProvider: AIProvider = {
     const apiKey = process.env.OPENAI_API_KEY || 'no-key-required';
     const model = process.env.AI_MODEL || 'google/gemma-4-12b';
 
+    const isLocalhost = apiBase.includes('localhost') || apiBase.includes('127.0.0.1');
+    const timeoutDuration = isLocalhost ? 1500 : 25000;
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout limit
+    const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
 
     try {
       const response = await fetch(`${apiBase}/chat/completions`, {
