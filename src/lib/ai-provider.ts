@@ -52,7 +52,7 @@ async function callOpenAICompat<T>(system: string, prompt: string): Promise<T> {
   const isGroq = apiBase.includes('groq.com');
   const isZAI  = apiBase.includes('z.ai');
   const defaultModel = isGroq ? 'qwen/qwen3-32b'
-                     : isZAI  ? 'glm-4-plus'
+                     : isZAI  ? 'glm-4.7'
                      : 'gpt-4o';
   // Ignore a stale llama env var on Groq — Llama leaks foreign tokens into Arabic
   const envModel = process.env.AI_MODEL;
