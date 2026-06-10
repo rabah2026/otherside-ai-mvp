@@ -50,13 +50,15 @@ async function callOpenAICompat<T>(system: string, prompt: string): Promise<T> {
   const apiBase = process.env.AI_API_BASE_URL || 'http://localhost:1234/v1';
   const apiKey = process.env.OPENAI_API_KEY || 'no-key-required';
   const isGroq = apiBase.includes('groq.com');
-  // Qwen3 handles Arabic far better than Llama among Groq-hosted models.
-  // Override a stale AI_MODEL=llama-* env setting on Groq — Llama leaks
-  // foreign-language tokens into Arabic output.
+  const isZAI  = apiBase.includes('z.ai');
+  const defaultModel = isGroq ? 'qwen/qwen3-32b'
+                     : isZAI  ? 'glm-4-plus'
+                     : 'gpt-4o';
+  // Ignore a stale llama env var on Groq — Llama leaks foreign tokens into Arabic
   const envModel = process.env.AI_MODEL;
-  const model = envModel && !(isGroq && envModel.includes('llama'))
+  const model = envModel && !(isGroq && envModel.toLowerCase().includes('llama'))
     ? envModel
-    : (isGroq ? 'qwen/qwen3-32b' : 'gpt-4o');
+    : defaultModel;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 55000);

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { aiProvider } from '@/lib/ai-provider';
-import { softRewriteNeutrality } from '@/lib/neutrality-guard';
+import { softRewriteNeutrality, cleanArabicLeakage } from '@/lib/neutrality-guard';
 import { OtherSideReport } from '@/types';
 
 const SYSTEM_PROMPT = `You are OtherSide AI, a neutral counter-story research assistant.
@@ -197,17 +197,22 @@ Quality rules — violations make the report worthless:
       report = result.data;
     }
 
-    // Apply neutrality guard to ensure no banned language exists in the report fields
-    report.otherSideStory = softRewriteNeutrality(report.otherSideStory);
-    report.strongestCounterArgument = softRewriteNeutrality(report.strongestCounterArgument);
-    if (report.bothSidesAgreeOn) {
-      report.bothSidesAgreeOn = report.bothSidesAgreeOn.map(softRewriteNeutrality);
-    }
-    if (report.disputedPoints) {
-      report.disputedPoints = report.disputedPoints.map(softRewriteNeutrality);
-    }
-    if (report.logicalLeaps) {
-      report.logicalLeaps = report.logicalLeaps.map(softRewriteNeutrality);
+    // Neutrality guard + Arabic leakage cleaner applied to every text field
+    const clean = (s: string) => cleanArabicLeakage(softRewriteNeutrality(s));
+    const cleanArr = (arr?: string[]) => arr ? arr.map(clean) : arr;
+
+    report.detectedStory = clean(report.detectedStory);
+    report.mainParty = clean(report.mainParty);
+    report.otherParty = clean(report.otherParty);
+    report.otherSideStory = clean(report.otherSideStory);
+    report.strongestCounterArgument = clean(report.strongestCounterArgument);
+    report.bothSidesAgreeOn = report.bothSidesAgreeOn.map(clean);
+    report.disputedPoints = report.disputedPoints.map(clean);
+    report.uncertaintyNotes = report.uncertaintyNotes.map(clean);
+    report.logicalLeaps = cleanArr(report.logicalLeaps);
+    report.keyEvidenceGaps = cleanArr(report.keyEvidenceGaps);
+    if (report.sourceNotes) {
+      report.sourceNotes = report.sourceNotes.map(s => ({ ...s, note: clean(s.note) }));
     }
 
     return NextResponse.json({
