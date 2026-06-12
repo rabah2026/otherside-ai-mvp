@@ -16,7 +16,7 @@ export default function HeroSection() {
         <h1 className="text-4xl sm:text-6xl font-serif text-slate-900 dark:text-white tracking-tight font-light leading-none">
           {lang === 'ar' ? (
             <>
-              لكل قصة جانب <span className="font-normal italic">آخر</span>.
+              لكل رأي جانب <span className="font-normal italic">آخر</span>.
             </>
           ) : (
             <>

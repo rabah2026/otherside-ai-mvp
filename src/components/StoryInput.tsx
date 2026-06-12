@@ -20,7 +20,7 @@ export default function StoryInput({ value, onChange, onSubmit, loading }: Props
 
   const getPlaceholder = () => {
     return lang === 'ar'
-      ? 'أدخل مقتطفًا من مقال، أو تغريدة، أو ادعاءً قانونيًا، أو رواية تاريخية، أو حجة...'
+      ? 'الصق خبرًا أو تغريدة أو رأيًا — سنريك الجانب الآخر...'
       : 'Paste an article excerpt, tweet, legal claim, historical account, or argument...';
   };
 
