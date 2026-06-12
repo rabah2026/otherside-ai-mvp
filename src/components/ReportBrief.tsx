@@ -64,27 +64,34 @@ export default function ReportBrief({ report }: Props) {
   const { t, lang } = useConfig();
   const briefRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const reportId = React.useMemo(
     () => `OB_${Math.random().toString(36).substring(2, 5).toUpperCase()}_${Math.random().toString(36).substring(2, 4).toUpperCase()}`,
     []
   );
 
+  const renderCanvas = async () => {
+    const html2canvas = (await import('html2canvas-pro')).default;
+    return html2canvas(briefRef.current as HTMLDivElement, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: document.documentElement.classList.contains('dark') ? '#050508' : '#fcfcfd',
+    });
+  };
+
   const handleExportPNG = async () => {
     if (!briefRef.current) return;
     setExporting(true);
+    setExportError(null);
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(briefRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: document.documentElement.classList.contains('dark') ? '#050508' : '#fcfcfd',
-      });
+      const canvas = await renderCanvas();
       const link = document.createElement('a');
       link.download = `OtherSide-${reportId}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (e) {
       console.error('PNG export failed', e);
+      setExportError(lang === 'ar' ? 'تعذّر تصدير الصورة. حاول مرة أخرى.' : 'PNG export failed. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -93,19 +100,16 @@ export default function ReportBrief({ report }: Props) {
   const handleExportPDF = async () => {
     if (!briefRef.current) return;
     setExporting(true);
+    setExportError(null);
     try {
-      const html2canvas = (await import('html2canvas')).default;
       const jsPDF = (await import('jspdf')).default;
-      const canvas = await html2canvas(briefRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: document.documentElement.classList.contains('dark') ? '#050508' : '#fcfcfd',
-      });
+      const canvas = await renderCanvas();
       const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
       pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
       pdf.save(`OtherSide-${reportId}.pdf`);
     } catch (e) {
       console.error('PDF export failed', e);
+      setExportError(lang === 'ar' ? 'تعذّر تصدير PDF. حاول مرة أخرى.' : 'PDF export failed. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -132,6 +136,12 @@ export default function ReportBrief({ report }: Props) {
           {lang === 'ar' ? 'تصدير PDF' : 'Export PDF'}
         </button>
       </div>
+
+      {exportError && (
+        <p className={`text-[11px] text-rose-500 ${lang === 'ar' ? 'text-left' : 'text-right'}`}>
+          {exportError}
+        </p>
+      )}
 
       {/* Main card */}
       <div
