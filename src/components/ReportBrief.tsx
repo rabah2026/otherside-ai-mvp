@@ -33,13 +33,16 @@ function Section({
   icon,
   children,
   defaultOpen = true,
+  forceOpen = false,
 }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  forceOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const isOpen = forceOpen || open;
   return (
     <div className="border-b border-neutral-100 dark:border-neutral-800/60 last:border-0">
       <button
@@ -51,11 +54,11 @@ function Section({
           {icon}
           {title}
         </span>
-        {open
+        {isOpen
           ? <ChevronUp className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
           : <ChevronDown className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />}
       </button>
-      {open && <div className="pb-5">{children}</div>}
+      {isOpen && <div className="pb-5">{children}</div>}
     </div>
   );
 }
@@ -65,6 +68,7 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
   const briefRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [forceExpandAll, setForceExpandAll] = useState(false);
   const reportId = React.useMemo(
     () => `OB_${Math.random().toString(36).substring(2, 5).toUpperCase()}_${Math.random().toString(36).substring(2, 4).toUpperCase()}`,
     []
@@ -81,12 +85,23 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
     });
   };
 
+  const captureExpanded = async (): Promise<HTMLCanvasElement> => {
+    setForceExpandAll(true);
+    // Wait one frame for React to re-render all sections open before capturing.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    try {
+      return await renderCanvas();
+    } finally {
+      setForceExpandAll(false);
+    }
+  };
+
   const handleExportPNG = async () => {
     if (!briefRef.current) return;
     setExporting(true);
     setExportError(null);
     try {
-      const canvas = await renderCanvas();
+      const canvas = await captureExpanded();
       const link = document.createElement('a');
       link.download = `OtherSide-${reportId}.png`;
       link.href = canvas.toDataURL('image/png');
@@ -105,7 +120,7 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
     setExportError(null);
     try {
       const jsPDF = (await import('jspdf')).default;
-      const canvas = await renderCanvas();
+      const canvas = await captureExpanded();
       const w = canvas.width / 2;
       const h = canvas.height / 2;
       const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: [w, h] });
@@ -209,6 +224,7 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
           <Section
             title={lang === 'ar' ? 'ماذا يقول الطرف الآخر؟' : "The Other Side's Narrative"}
             icon={<Scale className="w-3.5 h-3.5" />}
+            forceOpen={forceExpandAll}
           >
             <p className="text-sm text-neutral-800 dark:text-neutral-200 leading-relaxed font-serif">
               {report.otherSideStory}
@@ -218,6 +234,7 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
           <Section
             title={lang === 'ar' ? 'أقوى حجة مقابلة' : 'Strongest Counter-Argument'}
             icon={<ShieldCheck className="w-3.5 h-3.5" />}
+            forceOpen={forceExpandAll}
           >
             <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">
               {report.strongestCounterArgument}
@@ -229,6 +246,7 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
               title={lang === 'ar' ? 'نقاط الاتفاق' : 'Points of Agreement'}
               icon={<CheckCircle2 className="w-3.5 h-3.5" />}
               defaultOpen={false}
+              forceOpen={forceExpandAll}
             >
               <ul className="space-y-2">
                 {report.bothSidesAgreeOn.map((pt, i) => (
@@ -246,6 +264,7 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
               title={lang === 'ar' ? 'نقاط الخلاف' : 'Disputed Points'}
               icon={<CircleDot className="w-3.5 h-3.5" />}
               defaultOpen={false}
+              forceOpen={forceExpandAll}
             >
               <ul className="space-y-2">
                 {report.disputedPoints.map((pt, i) => (
@@ -263,6 +282,7 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
               title={lang === 'ar' ? 'نقاط غير مؤكَّدة' : 'Areas of Uncertainty'}
               icon={<AlertCircle className="w-3.5 h-3.5" />}
               defaultOpen={false}
+              forceOpen={forceExpandAll}
             >
               <ul className="space-y-2">
                 {report.uncertaintyNotes.map((note, i) => (
@@ -280,6 +300,7 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
               title={lang === 'ar' ? 'المصادر والمراجع' : 'Sources & References'}
               icon={<BookOpen className="w-3.5 h-3.5" />}
               defaultOpen={false}
+              forceOpen={forceExpandAll}
             >
               <div className="space-y-3">
                 {report.sourceNotes.map((src, i) => (
