@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { aiProvider } from '@/lib/ai-provider';
-import { softRewriteNeutrality } from '@/lib/neutrality-guard';
+import { softRewriteNeutrality, cleanArabicLeakage } from '@/lib/neutrality-guard';
 import { OtherSideReport } from '@/types';
+
+export const maxDuration = 25;
 
 const SYSTEM_PROMPT = `You are OtherSide AI, a neutral counter-story research assistant.
 Your job is not to judge who is right. Your job is to identify the missing or opposing side of a story and present that side in the strongest fair form using careful, source-aware language.
@@ -218,28 +220,38 @@ Mode instructions:
 
     let report: OtherSideReport;
     let demoMode = false;
+    let demoReason: string | undefined;
 
     if (result.demoMode || !result.data || typeof result.data !== 'object') {
       report = getMockReport(text, isArabic);
       demoMode = true;
+      demoReason = result.reason;
     } else {
       report = result.data;
     }
 
-    // Apply neutrality guard to ensure no banned language exists in the report fields
-    report.otherSideStory = softRewriteNeutrality(report.otherSideStory);
-    report.strongestCounterArgument = softRewriteNeutrality(report.strongestCounterArgument);
+    const rewrite = (s: string) => softRewriteNeutrality(isArabic ? cleanArabicLeakage(s) : s);
+
+    report.detectedStory = rewrite(report.detectedStory);
+    report.mainParty = rewrite(report.mainParty);
+    report.otherParty = rewrite(report.otherParty);
+    report.otherSideStory = rewrite(report.otherSideStory);
+    report.strongestCounterArgument = rewrite(report.strongestCounterArgument);
+    report.neutralNote = rewrite(report.neutralNote);
     if (report.bothSidesAgreeOn) {
-      report.bothSidesAgreeOn = report.bothSidesAgreeOn.map(softRewriteNeutrality);
+      report.bothSidesAgreeOn = report.bothSidesAgreeOn.map(rewrite);
     }
     if (report.disputedPoints) {
-      report.disputedPoints = report.disputedPoints.map(softRewriteNeutrality);
+      report.disputedPoints = report.disputedPoints.map(rewrite);
+    }
+    if (report.uncertaintyNotes) {
+      report.uncertaintyNotes = report.uncertaintyNotes.map(rewrite);
+    }
+    if (report.sourceNotes) {
+      report.sourceNotes = report.sourceNotes.map((s) => ({ ...s, note: rewrite(s.note) }));
     }
 
-    return NextResponse.json({
-      report,
-      demoMode,
-    });
+    return NextResponse.json({ report, demoMode, demoReason });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Internal report generation error' }, { status: 500 });
   }

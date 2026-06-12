@@ -18,6 +18,25 @@ const REPLACEMENTS: Record<string, string> = {
   'you should believe': 'a reader may consider',
 };
 
+const ARABIC_LEAKAGE_FIXES: Record<string, string> = {
+  nexus: 'صلة',
+  claim: 'ادعاء',
+  claims: 'ادعاءات',
+  vojna: 'حرب',
+  war: 'حرب',
+  link: 'صلة',
+  connection: 'علاقة',
+  present: 'يعرض',
+  suggests: 'يشير',
+  argues: 'يجادل',
+  states: 'يذكر',
+  notes: 'يلاحظ',
+  shows: 'يُظهر',
+  dispute: 'نزاع',
+  argument: 'حجة',
+  narrative: 'رواية',
+};
+
 export function findNeutralityIssues(text: string): string[] {
   const lower = text.toLowerCase();
   return BANNED_PHRASES.filter((phrase) => lower.includes(phrase));
@@ -25,11 +44,18 @@ export function findNeutralityIssues(text: string): string[] {
 
 export function softRewriteNeutrality(text: string): string {
   let result = text;
-
   for (const [bad, replacement] of Object.entries(REPLACEMENTS)) {
     const regex = new RegExp(bad, 'gi');
     result = result.replace(regex, replacement);
   }
+  return result;
+}
 
+export function cleanArabicLeakage(text: string): string {
+  if (!text || !/[؀-ۿ]/.test(text)) return text;
+  let result = text;
+  for (const [latin, arabic] of Object.entries(ARABIC_LEAKAGE_FIXES)) {
+    result = result.replace(new RegExp(`(ال)?\\b${latin}\\b`, 'gi'), arabic);
+  }
   return result;
 }

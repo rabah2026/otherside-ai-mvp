@@ -19,6 +19,7 @@ export default function AppWorkspace() {
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<OtherSideReport | null>(null);
   const [demoMode, setDemoMode] = useState(false);
+  const [demoReason, setDemoReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleSelectExample = (claim: string) => {
@@ -55,6 +56,7 @@ export default function AppWorkspace() {
 
       setReport(data.report);
       setDemoMode(data.demoMode);
+      setDemoReason(data.demoReason || null);
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred during generation.');
     } finally {
@@ -156,7 +158,7 @@ export default function AppWorkspace() {
             <div className="text-xs font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-500 text-center">
               {lang === 'ar' ? 'تقرير التحليل الذي تم إنشاؤه' : 'Generated Analysis Report'}
             </div>
-            <ReportBrief report={report} demoMode={demoMode} />
+            <ReportBrief report={report} demoMode={demoMode} demoReason={demoReason} />
           </div>
         )}
       </div>

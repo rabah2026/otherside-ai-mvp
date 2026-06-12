@@ -9,9 +9,10 @@ import { useConfig } from '@/context/ConfigContext';
 interface Props {
   report: OtherSideReport;
   demoMode: boolean;
+  demoReason?: string | null;
 }
 
-export default function ReportBrief({ report, demoMode }: Props) {
+export default function ReportBrief({ report, demoMode, demoReason }: Props) {
   const { t, lang } = useConfig();
   const briefRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
@@ -44,7 +45,7 @@ export default function ReportBrief({ report, demoMode }: Props) {
     setExporting(true);
     try {
       const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
+      const jsPDF = (await import('jspdf')).default;
 
       const canvas = await html2canvas(briefRef.current, {
         scale: 2,
@@ -106,6 +107,11 @@ export default function ReportBrief({ report, demoMode }: Props) {
                 </span>
               )}
             </div>
+            {demoMode && demoReason && (
+              <div className="mt-1 text-[10px] text-amber-600 dark:text-amber-500/80 font-mono break-all">
+                {lang === 'ar' ? 'خطأ المزود:' : 'Provider error:'} {demoReason}
+              </div>
+            )}
             <h2 className="text-xl sm:text-2xl font-serif text-slate-900 dark:text-white leading-tight font-semibold">
               {t('intelBrief')}
             </h2>
