@@ -9,31 +9,28 @@ interface Props {
 }
 
 export default function ModeSelector({ selected, onChange }: Props) {
-  const { t, lang } = useConfig();
-  
-  const modes: { id: OtherSideMode; label: string; desc: string; icon: React.ReactNode }[] = [
+  const { t } = useConfig();
+
+  const modes: { id: OtherSideMode; label: string; icon: React.ReactNode }[] = [
     {
       id: 'quick',
       label: t('quickCounter'),
-      desc: t('quickCounterDesc'),
-      icon: <Zap className="w-4.5 h-4.5 text-indigo-500 dark:text-indigo-400" />,
+      icon: <Zap className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />,
     },
     {
       id: 'deep',
       label: t('deepDispute'),
-      desc: t('deepDisputeDesc'),
-      icon: <Compass className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400" />,
+      icon: <Compass className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />,
     },
     {
       id: 'history',
       label: t('historyMirror'),
-      desc: t('historyMirrorDesc'),
-      icon: <BookOpen className="w-4.5 h-4.5 text-amber-600 dark:text-amber-400" />,
+      icon: <BookOpen className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />,
     },
   ];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-3 max-w-3xl mx-auto">
+    <div className="flex flex-wrap gap-2 justify-center max-w-3xl mx-auto">
       {modes.map((m) => {
         const active = selected === m.id;
         return (
@@ -41,19 +38,14 @@ export default function ModeSelector({ selected, onChange }: Props) {
             key={m.id}
             type="button"
             onClick={() => onChange(m.id)}
-            className={`p-4 rounded-xl border transition-all ${
-              lang === 'ar' ? 'text-right' : 'text-left'
-            } ${
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium border transition-all ${
               active
-                ? 'bg-neutral-100 dark:bg-neutral-900 border-neutral-300 dark:border-neutral-700 shadow-[0_0_15px_rgba(99,102,241,0.06)] text-slate-900 dark:text-white'
-                : 'bg-neutral-50/50 dark:bg-neutral-950/40 border-neutral-200 dark:border-neutral-900 text-neutral-500 dark:text-neutral-400 hover:border-neutral-300 dark:hover:border-neutral-800'
+                ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 border-neutral-900 dark:border-neutral-100'
+                : 'bg-white dark:bg-transparent text-neutral-500 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600 hover:text-neutral-800 dark:hover:text-neutral-200'
             }`}
           >
-            <div className="flex items-center gap-2 mb-1">
-              {m.icon}
-              <span className="font-semibold text-sm">{m.label}</span>
-            </div>
-            <p className="text-xs text-neutral-500 dark:text-neutral-500 leading-normal">{m.desc}</p>
+            {m.icon}
+            {m.label}
           </button>
         );
       })}
