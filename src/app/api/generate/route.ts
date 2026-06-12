@@ -6,7 +6,8 @@ import { OPENAI_REPORT_EN, OPENAI_REPORT_AR } from '@/lib/example-reports';
 import { OtherSideReport } from '@/types';
 
 function arabicRatio(text: string): number {
-  const letters = (text || '').replace(/[\s\d.,،؛:"'«»\-()/]/g, '');
+  if (!text || typeof text !== 'string') return 0;
+  const letters = text.replace(/[\s\d.,،؛:"'«»\-()/]/g, '');
   if (!letters.length) return 0;
   const arabic = (letters.match(/[؀-ۿ]/g) || []).length;
   return arabic / letters.length;
@@ -377,7 +378,7 @@ Return one JSON object only.`;
     const firstCheck = isValidReport(report, isArabic);
     console.log('[generate] first call demoMode:', firstResult.demoMode, '| validity:', firstCheck.reason,
       '| story_len:', report?.otherSideStory?.length, '| counter_len:', report?.strongestCounterArgument?.length,
-      '| arabic_ratio:', report?.otherSideStory ? arabicRatio(report.otherSideStory).toFixed(2) : 'n/a');
+      '| arabic_ratio:', report?.otherSideStory ? arabicRatio(String(report.otherSideStory)).toFixed(2) : 'n/a');
 
     if (isArabic && !firstResult.demoMode && !firstCheck.ok) {
       const retryPrompt = `${langInstruction}
