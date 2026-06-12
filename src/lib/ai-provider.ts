@@ -14,6 +14,17 @@ function extractJson(raw: string): string {
   return text;
 }
 
+function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  // Do NOT pass AbortSignal to fetch — Next.js Turbopack's fetch patch calls
+  // .replace() on all option values and throws when it encounters a non-string
+  // (AbortSignal is an object). Use Promise.race for timeout instead.
+  const fetchPromise = fetch(url, options);
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`AI request timed out after ${timeoutMs / 1000}s`)), timeoutMs)
+  );
+  return Promise.race([fetchPromise, timeoutPromise]);
+}
+
 export interface AIProvider {
   generateJSON<T>(input: {
     system: string;
@@ -29,57 +40,60 @@ export const aiProvider: AIProvider = {
     const model = process.env.AI_MODEL || 'google/gemma-4-12b';
 
     const isLocalhost = apiBase.includes('localhost') || apiBase.includes('127.0.0.1');
-    const timeoutDuration = isLocalhost ? 1500 : (timeoutMs ?? 25000);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
 
     // Fast-fail when no real API is configured (catches misconfigured Vercel deployments).
     if (isLocalhost) {
-      clearTimeout(timeoutId);
-      const reason = `AI_API_BASE_URL not set — using localhost fallback (${apiBase}). Set it in Vercel environment variables.`;
+      const reason = `AI_API_BASE_URL not set — using localhost fallback. Set it in Vercel environment variables.`;
       console.warn('AI Provider:', reason);
       return { data: null as unknown as T, demoMode: true, reason };
     }
 
+    const duration = timeoutMs ?? 25000;
+
     try {
-      const response = await fetch(`${apiBase}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
+      const response = await fetchWithTimeout(
+        `${apiBase}/chat/completions`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: 'system', content: system },
+              { role: 'user', content: prompt },
+            ],
+            temperature: 0.1,
+            max_tokens: 4096,
+            response_format: { type: 'json_object' },
+          }),
         },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.1,
-          max_tokens: 4096,
-          response_format: { type: 'json_object' },
-        }),
-        signal: controller.signal,
-      });
+        duration
+      );
 
       if (!response.ok) {
         const errBody = await response.text().catch(() => '');
         // Some models don't support response_format — retry without it.
         if (response.status === 400 && errBody.includes('response_format')) {
-          const retryRes = await fetch(`${apiBase}/chat/completions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-            body: JSON.stringify({
-              model,
-              messages: [
-                { role: 'system', content: system },
-                { role: 'user', content: prompt },
-              ],
-              temperature: 0.1,
-              max_tokens: 4096,
-            }),
-            signal: controller.signal,
-          });
+          const retryRes = await fetchWithTimeout(
+            `${apiBase}/chat/completions`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+              body: JSON.stringify({
+                model,
+                messages: [
+                  { role: 'system', content: system },
+                  { role: 'user', content: prompt },
+                ],
+                temperature: 0.1,
+                max_tokens: 4096,
+              }),
+            },
+            duration
+          );
           if (!retryRes.ok) {
             throw new Error(`AI API error ${retryRes.status} (model: ${model})`);
           }
@@ -101,13 +115,9 @@ export const aiProvider: AIProvider = {
       const parsed = JSON.parse(contentText);
       return { data: parsed as T, demoMode: false };
     } catch (e: any) {
-      const reason = e?.name === 'AbortError'
-        ? `AI request timed out after ${timeoutDuration / 1000}s (model: ${model})`
-        : String(e?.message || e);
+      const reason = String(e?.message || e || 'Unknown error');
       console.warn('AI Provider error — falling back to demo mode:', reason);
       return { data: null as unknown as T, demoMode: true, reason };
-    } finally {
-      clearTimeout(timeoutId);
     }
   },
 };
