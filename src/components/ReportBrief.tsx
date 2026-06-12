@@ -28,6 +28,26 @@ function sourceTypeLabel(type: string, lang: 'en' | 'ar'): string {
   return type.replace(/_/g, ' ');
 }
 
+function demoReasonLabel(reason: string, lang: 'en' | 'ar'): string {
+  if (lang !== 'ar') return reason;
+
+  const normalized = reason.toLowerCase();
+
+  if (normalized.includes('english') && normalized.includes('arabic')) {
+    return 'تم استخدام نموذج تجريبي محفوظ لأن النموذج أعاد مسودة إنجليزية لطلب عربي.';
+  }
+
+  if (normalized.includes('low-quality') || normalized.includes('low quality')) {
+    return 'تم استخدام نموذج تجريبي محفوظ لأن المسودة الأصلية لم تكن بالجودة المطلوبة.';
+  }
+
+  if (normalized.includes('api') || normalized.includes('provider') || normalized.includes('failed')) {
+    return 'تم استخدام نموذج تجريبي محفوظ لأن نتيجة التوليد المباشر لم تكتمل.';
+  }
+
+  return 'تم استخدام نموذج تجريبي محفوظ بدلًا من عرض نتيجة مباشرة غير مكتملة.';
+}
+
 function Section({
   title,
   icon,
@@ -150,8 +170,11 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
               )}
             </div>
             {demoMode && demoReason && (
-              <p className="text-[10px] text-amber-500/80 font-mono break-all">
-                {lang === 'ar' ? 'خطأ:' : 'Error:'} {demoReason}
+              <p
+                dir={lang === 'ar' ? 'rtl' : 'ltr'}
+                className={`text-[10px] text-amber-500/80 leading-relaxed ${lang === 'ar' ? 'font-sans text-right' : 'font-mono break-all'}`}
+              >
+                {lang === 'ar' ? 'ملاحظة:' : 'Note:'} {demoReasonLabel(demoReason, lang)}
               </p>
             )}
           </div>
