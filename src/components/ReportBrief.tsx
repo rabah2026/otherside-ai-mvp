@@ -13,6 +13,21 @@ interface Props {
   demoReason?: string | null;
 }
 
+const SOURCE_TYPE_LABELS: Record<string, { en: string; ar: string }> = {
+  official_statement: { en: 'official statement', ar: 'بيان رسمي' },
+  court_filing: { en: 'court filing', ar: 'ملف قضائي' },
+  reporting: { en: 'reporting', ar: 'تقرير صحفي' },
+  primary_source: { en: 'primary source', ar: 'مصدر أوّلي' },
+  historical_record: { en: 'historical record', ar: 'سجل تاريخي' },
+  unknown: { en: 'unknown', ar: 'غير محدّد' },
+};
+
+function sourceTypeLabel(type: string, lang: 'en' | 'ar'): string {
+  const entry = SOURCE_TYPE_LABELS[type];
+  if (entry) return lang === 'ar' ? entry.ar : entry.en;
+  return type.replace(/_/g, ' ');
+}
+
 function Section({
   title,
   icon,
@@ -250,7 +265,7 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium uppercase tracking-wide">
-                          {src.sourceType.replace(/_/g, ' ')}
+                          {sourceTypeLabel(src.sourceType, lang)}
                         </span>
                         {(src.publisher || src.date) && (
                           <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">

@@ -23,10 +23,10 @@ export default function Home() {
       <div className="max-w-5xl mx-auto px-4 py-16 border-t border-neutral-200 dark:border-neutral-900/60 relative z-10 space-y-12">
         <div className="text-center space-y-2">
           <h2 className="text-xs font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-500 font-bold">
-            {lang === 'ar' ? 'أطر عمل التوجيه' : 'Guiding Frameworks'}
+            {lang === 'ar' ? 'أطر التحليل' : 'Guiding Frameworks'}
           </h2>
           <p className="text-2xl font-serif text-slate-900 dark:text-white font-semibold">
-            {lang === 'ar' ? 'ثلاثة أبعاد للتحليل' : 'Three perspectives of analysis'}
+            {lang === 'ar' ? 'ثلاثُ زوايا للتحليل' : 'Three perspectives of analysis'}
           </p>
         </div>
 
@@ -37,8 +37,8 @@ export default function Home() {
             </div>
             <h3 className="font-serif text-lg text-slate-900 dark:text-white font-semibold">{t('quickCounter')}</h3>
             <p className="text-sm text-neutral-500 leading-relaxed">
-              {lang === 'ar' 
-                ? 'ملخص سريع للموقف المقابل. مصمم لتقديم وصول مباشر لأهم الحجج البديلة دون الخوض في تفاصيل مطولة.'
+              {lang === 'ar'
+                ? 'ملخّصٌ سريع للموقف المقابل، يمنحك أهمّ الحجج البديلة مباشرةً دون الخوض في تفاصيل مطوّلة.'
                 : 'Immediate context summary. Designed to provide instant access to the core alternative claims and arguments without wading through deep documentation.'}
             </p>
           </div>
@@ -50,7 +50,7 @@ export default function Home() {
             <h3 className="font-serif text-lg text-slate-900 dark:text-white font-semibold">{t('deepDispute')}</h3>
             <p className="text-sm text-neutral-500 leading-relaxed">
               {lang === 'ar'
-                ? 'رسم خرائط النزاع بشكل كامل. ينشئ تفصيلاً للخط الزمني، والمسائل المتنازع عليها، مع مراجعة تصريحات الأطراف.'
+                ? 'رسمٌ كاملٌ لخريطة النزاع: تسلسلٌ زمني، ونقاطُ خلافٍ مفصّلة، ومراجعةٌ لتصريحات الأطراف الرسمية.'
                 : 'Exhaustive dispute mapping. Generates a breakdown of the debate timeline, point-by-point disagreements, and source-backed official responses.'}
             </p>
           </div>
@@ -62,7 +62,7 @@ export default function Home() {
             <h3 className="font-serif text-lg text-slate-900 dark:text-white font-semibold">{t('historyMirror')}</h3>
             <p className="text-sm text-neutral-500 leading-relaxed">
               {lang === 'ar'
-                ? 'إعادة قراءة الروايات التاريخية من خلال تسليط الضوء على الرؤى ووجهات النظر البديلة أو المهمشة في المصادر الأولية.'
+                ? 'إعادةُ قراءةٍ للروايات التاريخية، تُسلّط الضوء على وجهات النظر البديلة أو المهمّشة في المصادر الأولية.'
                 : 'Perspective alignment tool. Re-contextualizes historical narratives by evaluating marginalized or unexamined historical actors and primary documents.'}
             </p>
           </div>
@@ -74,28 +74,28 @@ export default function Home() {
         <h2 className="text-xs font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-500 font-bold">
           {lang === 'ar' ? 'آلية العمل' : 'The Process'}
         </h2>
-        <div className="grid gap-6 sm:grid-cols-3 text-left">
+        <div className={`grid gap-6 sm:grid-cols-3 ${lang === 'ar' ? 'text-right' : 'text-left'}`}>
           <div className="space-y-1">
-            <div className="text-sm font-mono text-neutral-400 dark:text-neutral-600">01 / SUBMIT</div>
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{lang === 'ar' ? 'أدخل الرواية الأولى' : 'Paste one side'}</h4>
-            <p className="text-xs text-neutral-500 leading-relaxed">{lang === 'ar' ? 'أدخل أي ادعاء أو مقتطف مقال أو تغريدة.' : 'Input any statement, article snippet, or news excerpt.'}</p>
+            <div className="text-sm font-mono text-neutral-400 dark:text-neutral-600">{lang === 'ar' ? '٠١ / الإدخال' : '01 / SUBMIT'}</div>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{lang === 'ar' ? 'الصق رواية أحد الطرفين' : 'Paste one side'}</h4>
+            <p className="text-xs text-neutral-500 leading-relaxed">{lang === 'ar' ? 'أدخِل أي ادعاءٍ أو مقتطف مقالٍ أو تغريدة.' : 'Input any statement, article snippet, or news excerpt.'}</p>
           </div>
           <div className="space-y-1">
-            <div className="text-sm font-mono text-neutral-400 dark:text-neutral-600">02 / DETECT</div>
+            <div className="text-sm font-mono text-neutral-400 dark:text-neutral-600">{lang === 'ar' ? '٠٢ / التحديد' : '02 / DETECT'}</div>
             <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{lang === 'ar' ? 'تحديد الأطراف' : 'Identify parties'}</h4>
-            <p className="text-xs text-neutral-500 leading-relaxed">{lang === 'ar' ? 'يقوم المحرك بتحديد أطراف النزاع والادعاءات الأساسية.' : 'The AI parses claims, identifying core organizations and alternative parties.'}</p>
+            <p className="text-xs text-neutral-500 leading-relaxed">{lang === 'ar' ? 'يُحلّل المحرّك النص فيُحدّد أطراف النزاع وادعاءاته الأساسية.' : 'The AI parses claims, identifying core organizations and alternative parties.'}</p>
           </div>
           <div className="space-y-1">
-            <div className="text-sm font-mono text-neutral-400 dark:text-neutral-600">03 / CONSTRUCT</div>
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{lang === 'ar' ? 'مرآة حيادية' : 'Guarded Mirror'}</h4>
-            <p className="text-xs text-neutral-500 leading-relaxed">{lang === 'ar' ? 'يتم عرض تقرير حيادي لقصة الجانب الآخر مع المصادر المفحوصة.' : 'A neutrality-guarded counter-story is outputted with evaluated citations.'}</p>
+            <div className="text-sm font-mono text-neutral-400 dark:text-neutral-600">{lang === 'ar' ? '٠٣ / البناء' : '03 / CONSTRUCT'}</div>
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{lang === 'ar' ? 'مرآةٌ محايدة' : 'Guarded Mirror'}</h4>
+            <p className="text-xs text-neutral-500 leading-relaxed">{lang === 'ar' ? 'يُعرَض تقريرٌ محايدٌ لرواية الجانب الآخر مع مصادرَ مُقيَّمة.' : 'A neutrality-guarded counter-story is outputted with evaluated citations.'}</p>
           </div>
         </div>
       </div>
 
       {/* Footer */}
       <footer className="py-12 border-t border-neutral-200 dark:border-neutral-900 text-center text-xs text-neutral-400 dark:text-neutral-600 space-y-2">
-        <div>{lang === 'ar' ? 'الجانب الآخر AI © 2026. غير منحاز وموضوعي بطبيعته.' : 'OtherSide AI © 2026. Non-partisan and objective by design.'}</div>
+        <div>{lang === 'ar' ? '«الجانب الآخر» © 2026 — غير منحازٍ وموضوعيٌّ بالتصميم.' : 'OtherSide AI © 2026. Non-partisan and objective by design.'}</div>
         <div className="space-x-4">
           <Link href="/about" className="hover:text-neutral-600 dark:hover:text-neutral-400">{t('neutralityPolicy')}</Link>
           <Link href="/examples" className="hover:text-neutral-600 dark:hover:text-neutral-400">{t('examples')}</Link>

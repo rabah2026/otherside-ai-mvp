@@ -106,20 +106,29 @@ export default function AppWorkspace() {
               <span>{t('strictnessFilter')}</span>
             </div>
             <div className="flex gap-2">
-              {(['balanced', 'strict', 'reasoned'] as SourceStrictness[]).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setStrictness(st)}
-                  className={`px-3 py-1 rounded text-[10px] font-mono uppercase border transition-all ${
-                    strictness === st
-                      ? 'bg-slate-900 dark:bg-neutral-900 text-white border-slate-900 dark:border-neutral-700'
-                      : 'bg-transparent text-neutral-500 border-transparent hover:border-neutral-300 dark:hover:border-neutral-800'
-                  }`}
-                >
-                  {st}
-                </button>
-              ))}
+              {(['balanced', 'strict', 'reasoned'] as SourceStrictness[]).map((st) => {
+                const labels: Record<SourceStrictness, { en: string; ar: string }> = {
+                  balanced: { en: 'Balanced', ar: 'متوازن' },
+                  strict: { en: 'Strict', ar: 'صارم' },
+                  reasoned: { en: 'Reasoned', ar: 'استدلالي' },
+                };
+                return (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => setStrictness(st)}
+                    className={`px-3 py-1 rounded text-[10px] font-medium border transition-all ${
+                      lang === 'ar' ? '' : 'font-mono uppercase'
+                    } ${
+                      strictness === st
+                        ? 'bg-slate-900 dark:bg-neutral-900 text-white border-slate-900 dark:border-neutral-700'
+                        : 'bg-transparent text-neutral-500 border-transparent hover:border-neutral-300 dark:hover:border-neutral-800'
+                    }`}
+                  >
+                    {lang === 'ar' ? labels[st].ar : labels[st].en}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
