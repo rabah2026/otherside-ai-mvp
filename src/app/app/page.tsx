@@ -8,7 +8,7 @@ import ReportBrief from '@/components/ReportBrief';
 import DemoExamplePanel from '@/components/DemoExamplePanel';
 import ThemeLangControls from '@/components/ThemeLangControls';
 import { OtherSideMode, OtherSideReport, SourceStrictness } from '@/types';
-import { ShieldAlert, RefreshCw, Layers } from 'lucide-react';
+import { ShieldAlert, RefreshCw } from 'lucide-react';
 import { useConfig } from '@/context/ConfigContext';
 
 export default function AppWorkspace() {
@@ -99,41 +99,15 @@ export default function AppWorkspace() {
           {/* Mode Selector */}
           <ModeSelector selected={mode} onChange={setMode} />
 
-          {/* Source Strictness Controls */}
-          <div className="max-w-3xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 p-3 rounded-lg bg-white dark:bg-neutral-950/40 border border-neutral-200 dark:border-neutral-900 shadow-sm dark:shadow-none">
-            <div className="flex items-center gap-2 text-xs font-mono text-neutral-500 dark:text-neutral-400">
-              <Layers className="w-4 h-4 text-neutral-400" />
-              <span>{t('strictnessFilter')}</span>
-            </div>
-            <div className="flex gap-2">
-              {(['balanced', 'strict', 'reasoned'] as SourceStrictness[]).map((st) => {
-                const labels: Record<SourceStrictness, { en: string; ar: string }> = {
-                  balanced: { en: 'Balanced', ar: 'متوازن' },
-                  strict: { en: 'Strict', ar: 'صارم' },
-                  reasoned: { en: 'Reasoned', ar: 'استدلالي' },
-                };
-                return (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => setStrictness(st)}
-                    className={`px-3 py-1 rounded text-[10px] font-medium border transition-all ${
-                      lang === 'ar' ? '' : 'font-mono uppercase'
-                    } ${
-                      strictness === st
-                        ? 'bg-slate-900 dark:bg-neutral-900 text-white border-slate-900 dark:border-neutral-700'
-                        : 'bg-transparent text-neutral-500 border-transparent hover:border-neutral-300 dark:hover:border-neutral-800'
-                    }`}
-                  >
-                    {lang === 'ar' ? labels[st].ar : labels[st].en}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Interactive Form */}
-          <StoryInput value={text} onChange={setText} onSubmit={handleGenerate} loading={loading} />
+          <StoryInput
+            value={text}
+            onChange={setText}
+            onSubmit={handleGenerate}
+            loading={loading}
+            sourceStrictness={strictness}
+            onSourceStrictnessChange={setStrictness}
+          />
 
           {/* Seed Examples (Only shown if no report or currently loading) */}
           {!report && !loading && (
