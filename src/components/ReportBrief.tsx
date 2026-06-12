@@ -70,11 +70,13 @@ export default function ReportBrief({ report }: Props) {
     []
   );
 
+  // Use html-to-image (SVG foreignObject) rather than html2canvas: the
+  // browser itself rasterizes the node, so Arabic glyph shaping and RTL
+  // ordering are preserved (html2canvas re-renders text and breaks both).
   const renderCanvas = async () => {
-    const html2canvas = (await import('html2canvas-pro')).default;
-    return html2canvas(briefRef.current as HTMLDivElement, {
-      scale: 2,
-      useCORS: true,
+    const { toCanvas } = await import('html-to-image');
+    return toCanvas(briefRef.current as HTMLDivElement, {
+      pixelRatio: 2,
       backgroundColor: document.documentElement.classList.contains('dark') ? '#050508' : '#fcfcfd',
     });
   };
@@ -104,8 +106,10 @@ export default function ReportBrief({ report }: Props) {
     try {
       const jsPDF = (await import('jspdf')).default;
       const canvas = await renderCanvas();
-      const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+      const w = canvas.width / 2;
+      const h = canvas.height / 2;
+      const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: [w, h] });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, w, h);
       pdf.save(`OtherSide-${reportId}.pdf`);
     } catch (e) {
       console.error('PDF export failed', e);
