@@ -247,10 +247,17 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
               <div className="space-y-3">
                 {report.sourceNotes.map((src, i) => (
                   <div key={i} className="rounded-xl border border-neutral-200 dark:border-neutral-800/50 bg-neutral-50 dark:bg-neutral-900/40 p-3.5 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
-                        {src.sourceType.replace(/_/g, ' ')}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium uppercase tracking-wide">
+                          {src.sourceType.replace(/_/g, ' ')}
+                        </span>
+                        {(src.publisher || src.date) && (
+                          <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono">
+                            {[src.publisher, src.date].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </div>
                       <SourceStrengthBadge strength={src.strength} />
                     </div>
                     <p className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">{src.note}</p>
@@ -261,13 +268,13 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
                             href={src.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-[11px] text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+                            className="inline-flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors"
                           >
+                            <LinkIcon className="w-2.5 h-2.5 opacity-60 flex-shrink-0" />
                             {src.title}
-                            <LinkIcon className="w-2.5 h-2.5 opacity-60" />
                           </a>
                         ) : (
-                          <span className="text-[11px] text-neutral-500">{src.title}</span>
+                          <span className="text-[11px] text-neutral-500 italic">{src.title}</span>
                         )}
                       </div>
                     )}

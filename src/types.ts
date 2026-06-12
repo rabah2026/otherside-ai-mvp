@@ -35,6 +35,8 @@ export interface SourceNote {
   note: string;
   strength: SourceStrength;
   title?: string;
+  publisher?: string;
+  date?: string;
   url?: string;
 }
 
