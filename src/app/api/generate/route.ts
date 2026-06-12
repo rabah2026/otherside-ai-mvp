@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { aiProvider } from '@/lib/ai-provider';
-import { softRewriteNeutrality } from '@/lib/neutrality-guard';
+import { softRewriteNeutrality, cleanArabicLeakage } from '@/lib/neutrality-guard';
 import { OtherSideReport } from '@/types';
+
+export const maxDuration = 25;
 
 const SYSTEM_PROMPT = `You are OtherSide AI, a neutral counter-story research assistant.
 Your job is not to judge who is right. Your job is to identify the missing or opposing side of a story and present that side in the strongest fair form using careful, source-aware language.
@@ -40,8 +42,77 @@ Return JSON matching this schema:
   "neutralNote": "This is not a verdict. It presents the other side’s argument without judging who is right."
 }`;
 
-function getMockReport(text: string): OtherSideReport {
-  const isElonOpenAI = text.toLowerCase().includes('openai') || text.toLowerCase().includes('musk');
+function getMockReport(text: string, isArabic: boolean): OtherSideReport {
+  const isElonOpenAI = text.toLowerCase().includes('openai') || text.toLowerCase().includes('musk') || text.includes('ماسك');
+  if (isArabic) {
+    if (isElonOpenAI) {
+      return {
+        detectedStory: "تدعي القصة الملصقة أن OpenAI خانت مهمتها الأصلية غير الربحية وأصبحت متحالفة تجاريًا بشكل كبير مع مايكروسوفت.",
+        mainParty: "إيلون ماسك / منتقدو إعادة هيكلة OpenAI",
+        otherParty: "OpenAI وإدارتها",
+        otherSideStory: "من جانب OpenAI، من المحتمل أن تجادل القصة المقابلة بأن تطوير الذكاء الاصطناعي العام يتطلب موارد حوسبة واسعة النطاق، وعملاً على السلامة، ورأس مال كبير. قد تجادل المنظمة بأن هيكلها الهادف للربح المحدود والشراكات الإستراتيجية تم إنشاؤها لجعل المهمة قابلة للتحقيق عمليًا على نطاق واسع، بدلاً من التخلي عنها.",
+        strongestCounterArgument: "النسخة القوية من موقف OpenAI المقابل هي أن المهمة وهيكل التمويل لا يتعارضان تلقائيًا. من وجهة النظر هذه، كان الهيكل التجاري أداة لتمويل تطوير الذكاء الاصطناعي المتقدم، في حين ظل الحكم ولغة المهمة المعلنة تهدف إلى إبقاء المنظمة متماشية مع المنفعة العامة.",
+        bothSidesAgreeOn: [
+          "بدأت OpenAI بمهمة تركز على الذكاء الاصطناعي المفيد على نطاق واسع.",
+          "تبنت OpenAI لاحقًا هيكلًا محدد الأرباح.",
+          "أصبحت مايكروسوفت شريكًا ومستثمرًا رئيسيًا."
+        ],
+        disputedPoints: [
+          "ما إذا كان التغيير الهيكلي خيانة أم ضرورة عملية.",
+          "ما إذا كان دور مايكروسوفت قد قوض استقلال OpenAI.",
+          "ما إذا كانت المهمة الأصلية لـ OpenAI قد ظلت قائمة بشكل ملموس."
+        ],
+        sourceNotes: [
+          {
+            sourceType: "official_statement",
+            note: "ستكون البيانات الرسمية لـ OpenAI مهمة لمعرفة منطقها المعلن.",
+            strength: "strong",
+            title: "OpenAI: هيكلنا",
+            url: "https://openai.com/blog/openai-lp"
+          },
+          {
+            sourceType: "court_filing",
+            note: "ستكون وثائق المحكمة مصادر قوية للمطالبات القانونية المقدمة من كل جانب.",
+            strength: "strong",
+            title: "شكوى المحكمة العليا في كاليفورنيا",
+            url: "https://www.courthousenews.com/wp-content/uploads/2024/03/musk-v-openai-complaint.pdf"
+          }
+        ],
+        uncertaintyNotes: [
+          "يعتمد هذا التقرير الاحتياطي على الحجج القانونية العامة المقدمة أثناء التقاضي."
+        ],
+        neutralNote: "هذا ليس حكمًا. إنه يقدم حجة الجانب الآخر دون الحكم على من هو على حق."
+      };
+    }
+    return {
+      detectedStory: `ادعاء يتعلق بـ: "${text.substring(0, 80)}..."`,
+      mainParty: "صاحب الادعاء الأصلي",
+      otherParty: "المنظور البديل / الطرف المتأثر",
+      otherSideStory: "من المرجح أن يعترض الجانب الآخر على التفسيرات الأساسية المقدمة في المدخلات، بحجة أنه قد تم إغفال سياق أو حقائق بديلة حاسمة. وقد يؤكدون أن الإجراءات المتخذة كانت استجابات ضرورية للظروف الخارجية.",
+      strongestCounterArgument: "يشير الموقف المقابل إلى أنه عند تقييم الوضع، يجب على المرء أن ينظر في القواعد الهيكلية ودوافع وقيود الجانب الآخر بدلاً من تقييم القرارات بشكل منفصل.",
+      bothSidesAgreeOn: [
+        "الحدث أو العلاقة قائمة وتثير نقاشًا.",
+        "الأطراف المعنية فاعلون رئيسيون في هذا المجال."
+      ],
+      disputedPoints: [
+        "الدافع الأساسي وراء الإجراءات.",
+        "ما إذا كانت النتائج المبلغ عنها تمثيلاً عادلاً."
+      ],
+      sourceNotes: [
+        {
+          sourceType: "reporting",
+          note: "تغطي وسائل الإعلام الحدث من وجهات نظر متعددة.",
+          strength: "medium"
+        }
+      ],
+      uncertaintyNotes: [
+        "لم يتم توفير مصادر أولية كافية للتحقق الهيكلي الكامل."
+      ],
+      neutralNote: "هذا ليس حكمًا. إنه يقدم حجة الجانب الآخر دون الحكم على من هو على حق."
+    };
+  }
+
+  // English fallback
   if (isElonOpenAI) {
     return {
       detectedStory: "The pasted story claims that OpenAI betrayed its original nonprofit mission and became too commercially aligned with Microsoft.",
@@ -73,13 +144,6 @@ function getMockReport(text: string): OtherSideReport {
           strength: "strong",
           title: "Superior Court of California Complaint",
           url: "https://www.courthousenews.com/wp-content/uploads/2024/03/musk-v-openai-complaint.pdf"
-        },
-        {
-          sourceType: "reporting",
-          note: "Reputable reporting can provide timeline context, but should not replace primary documents.",
-          strength: "medium",
-          title: "Bloomberg: OpenAI's Journey from Nonprofit to Tech Giant",
-          url: "https://www.bloomberg.com"
         }
       ],
       uncertaintyNotes: [
@@ -90,7 +154,6 @@ function getMockReport(text: string): OtherSideReport {
     };
   }
 
-  // General Mock Fallback
   return {
     detectedStory: `A claim/narrative concerning: "${text.substring(0, 80)}..."`,
     mainParty: "Author of original text / Original Claimant",
@@ -121,12 +184,19 @@ function getMockReport(text: string): OtherSideReport {
 
 export async function POST(req: Request) {
   try {
-    const { text, mode, sourceStrictness } = await req.json();
+    const { text, mode, sourceStrictness, lang } = await req.json();
     if (!text) {
       return NextResponse.json({ error: 'Text input is required' }, { status: 400 });
     }
 
+    const isArabic = lang === 'ar' || /[\u0600-\u06FF]/.test(text);
+
+    const languageInstruction = isArabic
+      ? `\nCRITICAL REQUIREMENT: You MUST output all text strings inside the JSON report (detectedStory, mainParty, otherParty, otherSideStory, strongestCounterArgument, bothSidesAgreeOn, disputedPoints, sourceNotes, uncertaintyNotes, neutralNote) in fluent, highly-accurate Arabic language. Do not output English content inside these fields.`
+      : '';
+
     const userPrompt = `You are generating the other side of a story. Do not judge who is right.
+${languageInstruction}
 
 User Input Claim:
 ${text}
@@ -150,28 +220,38 @@ Mode instructions:
 
     let report: OtherSideReport;
     let demoMode = false;
+    let demoReason: string | undefined;
 
     if (result.demoMode || !result.data || typeof result.data !== 'object') {
-      report = getMockReport(text);
+      report = getMockReport(text, isArabic);
       demoMode = true;
+      demoReason = result.reason;
     } else {
       report = result.data;
     }
 
-    // Apply neutrality guard to ensure no banned language exists in the report fields
-    report.otherSideStory = softRewriteNeutrality(report.otherSideStory);
-    report.strongestCounterArgument = softRewriteNeutrality(report.strongestCounterArgument);
+    const rewrite = (s: string) => softRewriteNeutrality(isArabic ? cleanArabicLeakage(s) : s);
+
+    report.detectedStory = rewrite(report.detectedStory);
+    report.mainParty = rewrite(report.mainParty);
+    report.otherParty = rewrite(report.otherParty);
+    report.otherSideStory = rewrite(report.otherSideStory);
+    report.strongestCounterArgument = rewrite(report.strongestCounterArgument);
+    report.neutralNote = rewrite(report.neutralNote);
     if (report.bothSidesAgreeOn) {
-      report.bothSidesAgreeOn = report.bothSidesAgreeOn.map(softRewriteNeutrality);
+      report.bothSidesAgreeOn = report.bothSidesAgreeOn.map(rewrite);
     }
     if (report.disputedPoints) {
-      report.disputedPoints = report.disputedPoints.map(softRewriteNeutrality);
+      report.disputedPoints = report.disputedPoints.map(rewrite);
+    }
+    if (report.uncertaintyNotes) {
+      report.uncertaintyNotes = report.uncertaintyNotes.map(rewrite);
+    }
+    if (report.sourceNotes) {
+      report.sourceNotes = report.sourceNotes.map((s) => ({ ...s, note: rewrite(s.note) }));
     }
 
-    return NextResponse.json({
-      report,
-      demoMode,
-    });
+    return NextResponse.json({ report, demoMode, demoReason });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Internal report generation error' }, { status: 500 });
   }

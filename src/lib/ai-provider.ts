@@ -2,17 +2,20 @@ export interface AIProvider {
   generateJSON<T>(input: {
     system: string;
     prompt: string;
-  }): Promise<{ data: T; demoMode: boolean }>;
+  }): Promise<{ data: T; demoMode: boolean; reason?: string }>;
 }
 
 export const aiProvider: AIProvider = {
-  async generateJSON<T>({ system, prompt }: { system: string; prompt: string }): Promise<{ data: T; demoMode: boolean }> {
-    const apiBase = process.env.AI_API_BASE_URL || 'http://localhost:1234/v1';
+  async generateJSON<T>({ system, prompt }: { system: string; prompt: string }): Promise<{ data: T; demoMode: boolean; reason?: string }> {
+    const apiBase = (process.env.AI_API_BASE_URL || 'http://localhost:1234/v1').replace(/\/$/, '');
     const apiKey = process.env.OPENAI_API_KEY || 'no-key-required';
     const model = process.env.AI_MODEL || 'google/gemma-4-12b';
 
+    const isLocalhost = apiBase.includes('localhost') || apiBase.includes('127.0.0.1');
+    const timeoutDuration = isLocalhost ? 1500 : 25000;
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout limit
+    const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
 
     try {
       const response = await fetch(`${apiBase}/chat/completions`, {
@@ -31,10 +34,9 @@ export const aiProvider: AIProvider = {
         }),
         signal: controller.signal,
       });
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`LM Studio / OpenAI API returned error status: ${response.status}`);
+        throw new Error(`AI API error ${response.status} from ${apiBase} (model: ${model})`);
       }
 
       const resJson = await response.json();
@@ -47,12 +49,8 @@ export const aiProvider: AIProvider = {
       contentText = contentText.trim();
       if (contentText.startsWith('```')) {
         const lines = contentText.split('\n');
-        if (lines[0].startsWith('```')) {
-          lines.shift();
-        }
-        if (lines[lines.length - 1].startsWith('```')) {
-          lines.pop();
-        }
+        if (lines[0].startsWith('```')) lines.shift();
+        if (lines[lines.length - 1].startsWith('```')) lines.pop();
         contentText = lines.join('\n').trim();
       }
 
@@ -65,9 +63,14 @@ export const aiProvider: AIProvider = {
 
       const parsed = JSON.parse(contentText);
       return { data: parsed as T, demoMode: false };
-    } catch (e) {
-      console.warn('AI Provider failed to fetch or parse. Falling back to Demo Mode mocks:', e);
-      return { data: null as unknown as T, demoMode: true };
+    } catch (e: any) {
+      const reason = e?.name === 'AbortError'
+        ? `AI request timed out after ${timeoutDuration / 1000}s (${apiBase}, model: ${model})`
+        : String(e?.message || e);
+      console.warn('AI Provider error — falling back to demo mode:', reason);
+      return { data: null as unknown as T, demoMode: true, reason };
+    } finally {
+      clearTimeout(timeoutId);
     }
   },
 };
