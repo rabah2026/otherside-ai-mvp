@@ -50,7 +50,7 @@ export default function StoryInput({
           placeholder={getPlaceholder()}
           rows={6}
           disabled={loading}
-          className="w-full p-4 rounded-xl bg-neutral-100/40 dark:bg-neutral-900/40 border border-neutral-200 dark:border-neutral-800 text-slate-800 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:outline-none focus:border-neutral-300 dark:focus:border-neutral-700 disabled:opacity-50 text-sm leading-relaxed resize-y font-mono"
+          className={`w-full p-4 rounded-xl bg-neutral-100/40 dark:bg-neutral-900/40 border border-neutral-200 dark:border-neutral-800 text-slate-800 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-600 focus:outline-none focus:border-neutral-300 dark:focus:border-neutral-700 disabled:opacity-50 text-base sm:text-sm leading-relaxed resize-y ${lang === 'ar' ? '' : 'font-mono'}`}
         />
         {value.trim() && (
           <button

@@ -139,7 +139,7 @@ export default function AppWorkspace() {
         {report && !loading && (
           <div className="space-y-6">
             <div className="text-xs font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-500 text-center">
-              {lang === 'ar' ? 'تقرير التحليل الذي تم إنشاؤه' : 'Generated Analysis Report'}
+              {lang === 'ar' ? 'نتيجة التحليل' : 'Generated Analysis Report'}
             </div>
             <ReportBrief report={report} demoMode={demoMode} demoReason={demoReason} />
           </div>

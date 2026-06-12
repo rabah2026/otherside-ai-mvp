@@ -157,14 +157,14 @@ export default function ReportBrief({ report }: Props) {
           </div>
           <div className={`text-[10px] font-mono text-neutral-400 dark:text-neutral-500 space-y-0.5 flex-shrink-0 ${lang === 'ar' ? 'text-left' : 'text-right'}`}>
             <div>{lang === 'ar' ? 'رقم التقرير:' : 'Report ID:'} {reportId}</div>
-            <div>{lang === 'ar' ? 'عام / غير حزبي' : 'PUBLIC / NON-PARTISAN'}</div>
+            <div>{lang === 'ar' ? 'تقرير محايد' : 'PUBLIC / NON-PARTISAN'}</div>
           </div>
         </div>
 
         {/* Detected narrative — always open */}
         <div className="px-5 py-4 bg-neutral-50 dark:bg-neutral-900/30 border-b border-neutral-100 dark:border-neutral-800/60">
           <div className="text-[10px] uppercase font-bold tracking-widest text-neutral-400 dark:text-neutral-500 mb-2">
-            {lang === 'ar' ? 'الرواية المكتشفة' : 'Detected Narrative'}
+            {lang === 'ar' ? 'النص كما ورد' : 'Detected Narrative'}
           </div>
           <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed italic mb-3">
             "{report.detectedStory}"
@@ -238,7 +238,7 @@ export default function ReportBrief({ report }: Props) {
 
           {report.uncertaintyNotes && report.uncertaintyNotes.length > 0 && (
             <Section
-              title={lang === 'ar' ? 'ملاحظات الشكوك' : 'Areas of Uncertainty'}
+              title={lang === 'ar' ? 'نقاط غير مؤكَّدة' : 'Areas of Uncertainty'}
               icon={<AlertCircle className="w-3.5 h-3.5" />}
               defaultOpen={false}
             >

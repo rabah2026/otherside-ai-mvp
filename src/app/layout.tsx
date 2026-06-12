@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ConfigProvider } from "@/context/ConfigContext";
@@ -16,6 +16,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "OtherSide AI — Every story has another side.",
   description: "A neutral, non-partisan dispute evaluation workspace.",
+};
+
+// Keep initial scale at 1 (the 16px input font already prevents iOS
+// focus-zoom) while still allowing users to pinch-zoom for accessibility.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

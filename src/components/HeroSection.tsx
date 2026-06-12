@@ -11,7 +11,7 @@ export default function HeroSection() {
       <div className="max-w-4xl mx-auto px-4 space-y-6">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
           <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500" />
-          {lang === 'ar' ? 'مكتب الاستخبارات الجيل الأول' : 'Intelligence Desk MVP'}
+          {lang === 'ar' ? 'نسخة تجريبية' : 'Intelligence Desk MVP'}
         </div>
         <h1 className="text-4xl sm:text-6xl font-serif text-slate-900 dark:text-white tracking-tight font-light leading-none">
           {lang === 'ar' ? (
