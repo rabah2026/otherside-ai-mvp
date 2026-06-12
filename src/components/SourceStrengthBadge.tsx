@@ -7,25 +7,32 @@ interface Props {
 }
 
 export default function SourceStrengthBadge({ strength }: Props) {
-  const { t } = useConfig();
-  
-  const getColors = () => {
-    switch (strength) {
-      case 'strong':
-        return 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800/60';
-      case 'medium':
-        return 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800/60';
-      case 'weak':
-        return 'bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-800/60';
-      case 'missing':
-      default:
-        return 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-800';
-    }
+  const { lang } = useConfig();
+
+  const config: Record<SourceStrength, { label: { en: string; ar: string }; className: string }> = {
+    strong: {
+      label: { en: 'Strong source', ar: 'مصدر قوي' },
+      className: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50',
+    },
+    medium: {
+      label: { en: 'Medium source', ar: 'مصدر متوسط' },
+      className: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/50',
+    },
+    weak: {
+      label: { en: 'Weak source', ar: 'مصدر ضعيف' },
+      className: 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800/50',
+    },
+    missing: {
+      label: { en: 'No source', ar: 'بدون مصدر' },
+      className: 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-800',
+    },
   };
 
+  const { label, className } = config[strength] ?? config.missing;
+
   return (
-    <span className={`inline-block px-2 py-0.5 text-[10px] font-medium rounded border ${getColors()} uppercase tracking-wider`}>
-      {strength} {t('sourceStrength')}
+    <span className={`inline-block px-2 py-0.5 text-[10px] font-medium rounded-full border ${className}`}>
+      {label[lang] ?? label.en}
     </span>
   );
 }

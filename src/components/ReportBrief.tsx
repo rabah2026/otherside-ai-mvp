@@ -1,9 +1,10 @@
+'use client';
+
 import React, { useRef, useState } from 'react';
 import { OtherSideReport } from '@/types';
 import NeutralityBadge from './NeutralityBadge';
-import EvidenceStrip from './EvidenceStrip';
-import DisputedPoints from './DisputedPoints';
-import { ShieldCheck, Scale, AlertCircle, FileText, CheckCircle2, Download, Image as ImageIcon } from 'lucide-react';
+import SourceStrengthBadge from './SourceStrengthBadge';
+import { ChevronDown, ChevronUp, Scale, ShieldCheck, CheckCircle2, CircleDot, BookOpen, AlertCircle, Download, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
 import { useConfig } from '@/context/ConfigContext';
 
 interface Props {
@@ -12,11 +13,46 @@ interface Props {
   demoReason?: string | null;
 }
 
+function Section({
+  title,
+  icon,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-neutral-100 dark:border-neutral-800/60 last:border-0">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-4 gap-3 group"
+      >
+        <span className="flex items-center gap-2 text-xs font-semibold tracking-wide text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-800 dark:group-hover:text-neutral-200 transition-colors">
+          {icon}
+          {title}
+        </span>
+        {open
+          ? <ChevronUp className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
+          : <ChevronDown className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />}
+      </button>
+      {open && <div className="pb-5">{children}</div>}
+    </div>
+  );
+}
+
 export default function ReportBrief({ report, demoMode, demoReason }: Props) {
   const { t, lang } = useConfig();
   const briefRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
-  const reportId = React.useMemo(() => `OB-${Math.random().toString(36).substring(2, 7).toUpperCase()}`, []);
+  const reportId = React.useMemo(
+    () => `OB_${Math.random().toString(36).substring(2, 5).toUpperCase()}_${Math.random().toString(36).substring(2, 4).toUpperCase()}`,
+    []
+  );
 
   const handleExportPNG = async () => {
     if (!briefRef.current) return;
@@ -28,13 +64,12 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
         useCORS: true,
         backgroundColor: document.documentElement.classList.contains('dark') ? '#050508' : '#fcfcfd',
       });
-      const dataUrl = canvas.toDataURL('image/png');
       const link = document.createElement('a');
-      link.download = `OtherSide-Brief-${reportId}.png`;
-      link.href = dataUrl;
+      link.download = `OtherSide-${reportId}.png`;
+      link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (e) {
-      console.error('Failed to export PNG', e);
+      console.error('PNG export failed', e);
     } finally {
       setExporting(false);
     }
@@ -46,169 +81,206 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
     try {
       const html2canvas = (await import('html2canvas')).default;
       const jsPDF = (await import('jspdf')).default;
-
       const canvas = await html2canvas(briefRef.current, {
         scale: 2,
         useCORS: true,
         backgroundColor: document.documentElement.classList.contains('dark') ? '#050508' : '#fcfcfd',
       });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'p',
-        unit: 'px',
-        format: [canvas.width / 2, canvas.height / 2],
-      });
-
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
-      pdf.save(`OtherSide-Brief-${reportId}.pdf`);
+      const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: [canvas.width / 2, canvas.height / 2] });
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width / 2, canvas.height / 2);
+      pdf.save(`OtherSide-${reportId}.pdf`);
     } catch (e) {
-      console.error('Failed to export PDF', e);
+      console.error('PDF export failed', e);
     } finally {
       setExporting(false);
     }
   };
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto">
-      {/* Export Action Controls */}
+    <div className="space-y-3 max-w-3xl mx-auto">
+      {/* Export controls */}
       <div className="flex gap-2 justify-end">
         <button
           onClick={handleExportPNG}
           disabled={exporting}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors disabled:opacity-50"
         >
           <ImageIcon className="w-3.5 h-3.5" />
-          <span>{lang === 'ar' ? 'تصدير صورة' : 'Export PNG'}</span>
+          {lang === 'ar' ? 'تصدير صورة' : 'Export PNG'}
         </button>
         <button
           onClick={handleExportPDF}
           disabled={exporting}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-xs font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors disabled:opacity-50"
         >
           <Download className="w-3.5 h-3.5" />
-          <span>{lang === 'ar' ? 'تصدير PDF' : 'Export PDF'}</span>
+          {lang === 'ar' ? 'تصدير PDF' : 'Export PDF'}
         </button>
       </div>
 
-      {/* Main Exportable Container */}
+      {/* Main card */}
       <div
         ref={briefRef}
-        className="glass-panel rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-800/60 p-6 sm:p-8 space-y-8 relative text-slate-800 dark:text-neutral-300 bg-slate-50 dark:bg-[#050508] transition-colors duration-300"
+        className="rounded-2xl border border-neutral-200 dark:border-neutral-800/60 bg-white dark:bg-[#0d0d14] overflow-hidden"
       >
-        {/* Premium Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-neutral-200 dark:border-neutral-900">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
+        {/* Card header */}
+        <div className="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800/60 flex items-start justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
               <NeutralityBadge />
               {demoMode && (
-                <span className="bg-amber-100 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/40 text-amber-700 dark:text-amber-400 text-[10px] px-2 py-0.5 rounded font-mono uppercase tracking-wider">
+                <span className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 text-amber-600 dark:text-amber-400 text-[10px] px-2 py-0.5 rounded-full font-mono uppercase tracking-wider">
                   {t('demoMode')}
                 </span>
               )}
             </div>
             {demoMode && demoReason && (
-              <div className="mt-1 text-[10px] text-amber-600 dark:text-amber-500/80 font-mono break-all">
-                {lang === 'ar' ? 'خطأ المزود:' : 'Provider error:'} {demoReason}
-              </div>
+              <p className="text-[10px] text-amber-500/80 font-mono break-all">
+                {lang === 'ar' ? 'خطأ:' : 'Error:'} {demoReason}
+              </p>
             )}
-            <h2 className="text-xl sm:text-2xl font-serif text-slate-900 dark:text-white leading-tight font-semibold">
-              {t('intelBrief')}
-            </h2>
           </div>
-          <div className={`text-xs text-neutral-500 font-mono space-y-0.5 ${lang === 'ar' ? 'text-right sm:text-left' : 'text-left sm:text-right'}`}>
-            <div>Report ID: {reportId}</div>
-            <div>Classification: PUBLIC / NON-PARTISAN</div>
+          <div className={`text-[10px] font-mono text-neutral-400 dark:text-neutral-500 space-y-0.5 flex-shrink-0 ${lang === 'ar' ? 'text-left' : 'text-right'}`}>
+            <div>{lang === 'ar' ? 'رقم التقرير:' : 'Report ID:'} {reportId}</div>
+            <div>{lang === 'ar' ? 'عام / غير حزبي' : 'PUBLIC / NON-PARTISAN'}</div>
           </div>
         </div>
 
-        {/* Input Context Summary */}
-        <div className="bg-neutral-100/40 dark:bg-neutral-900/20 border border-neutral-200 dark:border-neutral-800/30 p-4 rounded-lg space-y-2">
-          <div className="text-[10px] uppercase font-bold tracking-wider text-neutral-500 flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5" /> {t('detectedNarrative')}
+        {/* Detected narrative — always open */}
+        <div className="px-5 py-4 bg-neutral-50 dark:bg-neutral-900/30 border-b border-neutral-100 dark:border-neutral-800/60">
+          <div className="text-[10px] uppercase font-bold tracking-widest text-neutral-400 dark:text-neutral-500 mb-2">
+            {lang === 'ar' ? 'الرواية المكتشفة' : 'Detected Narrative'}
           </div>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed italic">
+          <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed italic mb-3">
             "{report.detectedStory}"
           </p>
-          <div className="grid grid-cols-2 gap-4 pt-3 border-t border-neutral-200 dark:border-neutral-900 text-xs">
+          <div className="grid grid-cols-2 gap-3 text-xs pt-3 border-t border-neutral-200 dark:border-neutral-800/40">
             <div>
-              <span className="text-neutral-500">{t('mainParty')}:</span>{' '}
-              <span className="text-neutral-800 dark:text-neutral-300 font-medium">{report.mainParty}</span>
+              <span className="text-neutral-400 dark:text-neutral-500">{lang === 'ar' ? 'الطرف الأول' : 'Main party'}: </span>
+              <span className="text-neutral-800 dark:text-neutral-200 font-medium">{report.mainParty}</span>
             </div>
             <div>
-              <span className="text-neutral-500">{t('otherParty')}:</span>{' '}
-              <span className="text-neutral-800 dark:text-neutral-300 font-medium">{report.otherParty}</span>
+              <span className="text-neutral-400 dark:text-neutral-500">{lang === 'ar' ? 'الطرف الآخر' : 'Other party'}: </span>
+              <span className="text-neutral-800 dark:text-neutral-200 font-medium">{report.otherParty}</span>
             </div>
           </div>
         </div>
 
-        {/* The Other Side Story */}
-        <div className="space-y-3">
-          <h3 className="text-xs uppercase tracking-wider text-neutral-500 font-semibold flex items-center gap-1.5">
-            <Scale className="w-3.5 h-3.5" /> {t('otherSideStory')}
-          </h3>
-          <p className="text-base text-slate-800 dark:text-neutral-200 leading-relaxed font-serif">
-            {report.otherSideStory}
-          </p>
-        </div>
+        {/* Accordion sections */}
+        <div className="px-5 divide-y divide-neutral-100 dark:divide-neutral-800/60">
 
-        {/* Strongest Counter Argument */}
-        <div className={`p-5 rounded-lg border-neutral-300 dark:border-neutral-700 bg-neutral-100/50 dark:bg-neutral-900/20 space-y-2 ${lang === 'ar' ? 'border-r-2' : 'border-l-2'}`}>
-          <h3 className="text-xs uppercase tracking-wider text-neutral-500 dark:text-neutral-400 font-semibold flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" /> {t('strongestCounter')}
-          </h3>
-          <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">
-            {report.strongestCounterArgument}
-          </p>
-        </div>
+          <Section
+            title={lang === 'ar' ? 'ماذا يقول الطرف الآخر؟' : "The Other Side's Narrative"}
+            icon={<Scale className="w-3.5 h-3.5" />}
+          >
+            <p className="text-sm text-neutral-800 dark:text-neutral-200 leading-relaxed font-serif">
+              {report.otherSideStory}
+            </p>
+          </Section>
 
-        {/* Split grid for agreements and disputes */}
-        <div className="grid gap-6 sm:grid-cols-2">
-          {/* Agreements */}
+          <Section
+            title={lang === 'ar' ? 'أقوى حجة مقابلة' : 'Strongest Counter-Argument'}
+            icon={<ShieldCheck className="w-3.5 h-3.5" />}
+          >
+            <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed">
+              {report.strongestCounterArgument}
+            </p>
+          </Section>
+
           {report.bothSidesAgreeOn && report.bothSidesAgreeOn.length > 0 && (
-            <div className="space-y-2.5">
-              <h3 className="text-xs uppercase tracking-wider text-neutral-500 font-semibold flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" /> {t('pointsAgreement')}
-              </h3>
+            <Section
+              title={lang === 'ar' ? 'نقاط الاتفاق' : 'Points of Agreement'}
+              icon={<CheckCircle2 className="w-3.5 h-3.5" />}
+              defaultOpen={false}
+            >
               <ul className="space-y-2">
-                {report.bothSidesAgreeOn.map((pt, idx) => (
-                  <li key={idx} className="flex gap-2.5 items-start text-sm text-neutral-800 dark:text-neutral-300">
+                {report.bothSidesAgreeOn.map((pt, i) => (
+                  <li key={i} className="flex gap-2.5 items-start text-sm text-neutral-700 dark:text-neutral-300">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 mt-1.5 flex-shrink-0" />
                     <span className="leading-relaxed">{pt}</span>
                   </li>
                 ))}
               </ul>
-            </div>
+            </Section>
           )}
 
-          {/* Disputes */}
-          <DisputedPoints points={report.disputedPoints} />
-        </div>
-
-        {/* Thin Divider */}
-        <div className="thin-divider" />
-
-        {/* Sources */}
-        <EvidenceStrip sources={report.sourceNotes} />
-
-        {/* Uncertainty & Policy notes */}
-        <div className="grid gap-4 sm:grid-cols-2 pt-4 text-xs text-neutral-500 border-t border-neutral-200 dark:border-neutral-900">
-          {report.uncertaintyNotes && report.uncertaintyNotes.length > 0 && (
-            <div className="space-y-1">
-              <div className="font-semibold uppercase tracking-wider flex items-center gap-1">
-                <AlertCircle className="w-3 h-3 text-neutral-400 dark:text-neutral-600" /> {t('uncertaintyAreas')}
-              </div>
-              <ul className="list-disc px-4 space-y-0.5">
-                {report.uncertaintyNotes.map((note, idx) => (
-                  <li key={idx}>{note}</li>
+          {report.disputedPoints && report.disputedPoints.length > 0 && (
+            <Section
+              title={lang === 'ar' ? 'نقاط الخلاف' : 'Disputed Points'}
+              icon={<CircleDot className="w-3.5 h-3.5" />}
+              defaultOpen={false}
+            >
+              <ul className="space-y-2">
+                {report.disputedPoints.map((pt, i) => (
+                  <li key={i} className="flex gap-2.5 items-start text-sm text-neutral-700 dark:text-neutral-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500/70 mt-1.5 flex-shrink-0" />
+                    <span className="leading-relaxed">{pt}</span>
+                  </li>
                 ))}
               </ul>
-            </div>
+            </Section>
           )}
-          <div className="space-y-1">
-            <div className="font-semibold uppercase tracking-wider">{lang === 'ar' ? 'ملاحظة السياسة' : 'Policy Note'}</div>
-            <p className="leading-relaxed">{report.neutralNote || t('policyText')}</p>
-          </div>
+
+          {report.uncertaintyNotes && report.uncertaintyNotes.length > 0 && (
+            <Section
+              title={lang === 'ar' ? 'ملاحظات الشكوك' : 'Areas of Uncertainty'}
+              icon={<AlertCircle className="w-3.5 h-3.5" />}
+              defaultOpen={false}
+            >
+              <ul className="space-y-2">
+                {report.uncertaintyNotes.map((note, i) => (
+                  <li key={i} className="flex gap-2.5 items-start text-sm text-neutral-700 dark:text-neutral-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500/60 mt-1.5 flex-shrink-0" />
+                    <span className="leading-relaxed">{note}</span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+
+          {report.sourceNotes && report.sourceNotes.length > 0 && (
+            <Section
+              title={lang === 'ar' ? 'المصادر والمراجع' : 'Sources & References'}
+              icon={<BookOpen className="w-3.5 h-3.5" />}
+              defaultOpen={false}
+            >
+              <div className="space-y-3">
+                {report.sourceNotes.map((src, i) => (
+                  <div key={i} className="rounded-xl border border-neutral-200 dark:border-neutral-800/50 bg-neutral-50 dark:bg-neutral-900/40 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-neutral-500 dark:text-neutral-400 font-medium">
+                        {src.sourceType.replace(/_/g, ' ')}
+                      </span>
+                      <SourceStrengthBadge strength={src.strength} />
+                    </div>
+                    <p className="text-xs text-neutral-700 dark:text-neutral-300 leading-relaxed">{src.note}</p>
+                    {src.title && (
+                      <div className="pt-1.5 border-t border-neutral-200 dark:border-neutral-800/40">
+                        {src.url ? (
+                          <a
+                            href={src.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-[11px] text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+                          >
+                            {src.title}
+                            <LinkIcon className="w-2.5 h-2.5 opacity-60" />
+                          </a>
+                        ) : (
+                          <span className="text-[11px] text-neutral-500">{src.title}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Section>
+          )}
+        </div>
+
+        {/* Footer note */}
+        <div className="px-5 py-3 border-t border-neutral-100 dark:border-neutral-800/60 text-[10px] text-neutral-400 dark:text-neutral-500 leading-relaxed">
+          {report.neutralNote || t('policyText')}
         </div>
       </div>
     </div>
