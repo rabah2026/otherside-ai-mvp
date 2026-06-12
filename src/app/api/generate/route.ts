@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { aiProvider } from '@/lib/ai-provider';
 import { softRewriteNeutrality, cleanArabicLeakage } from '@/lib/neutrality-guard';
-import { searchEvidenceForReport, formatEvidenceContext, isRepetitive, allowedEvidenceUrls, isUrlInEvidence } from '@/lib/web-search';
+import { searchEvidenceForReport, formatEvidenceContext, isRepetitive, trigramContainment, allowedEvidenceUrls, isUrlInEvidence } from '@/lib/web-search';
 import { OPENAI_REPORT_EN, OPENAI_REPORT_AR } from '@/lib/example-reports';
 import { OtherSideReport } from '@/types';
 
@@ -73,6 +73,18 @@ function isValidReport(r: any, isArabic: boolean): { ok: boolean; reason: string
   const agreeSet = new Set((r.bothSidesAgreeOn as unknown[]).map(norm));
   if ((r.disputedPoints as unknown[]).some((p) => agreeSet.has(norm(p))))
     return { ok: false, reason: 'agree_disputed_overlap' };
+  // Cross-field recycling: the counter-argument must add new content, not be
+  // a copy of story sentences; list items must not be near-copies of each
+  // other across the agree/disputed sections.
+  const counterOverlap = trigramContainment(counter, story);
+  if (counterOverlap > 0.55)
+    return { ok: false, reason: `counter_duplicates_story:${counterOverlap.toFixed(2)}` };
+  for (const agree of r.bothSidesAgreeOn as unknown[]) {
+    for (const disputed of r.disputedPoints as unknown[]) {
+      if (trigramContainment(String(disputed || ''), String(agree || '')) > 0.7)
+        return { ok: false, reason: 'agree_disputed_near_duplicate' };
+    }
+  }
   if (isArabic) {
     const ratio = arabicRatio(story);
     if (ratio < 0.45) return { ok: false, reason: `arabic_ratio:${ratio.toFixed(2)}` };
@@ -101,10 +113,11 @@ Hard rules:
 - Return only valid JSON.
 
 Quality floor:
-- otherSideStory must be substantial: at least 3 declarative paragraphs naming specific people, institutions, or documented facts.
-- strongestCounterArgument must be a single complete declarative paragraph citing a specific named person, statistic, or documented record.
-- bothSidesAgreeOn and disputedPoints must each contain at least 2 complete declarative sentences.
-- sourceNotes must contain at least 2 source notes. Use strength "missing" only when no source is available.
+- otherSideStory must be substantial: at least 3 declarative paragraphs naming specific people, institutions, or documented facts, including at least 2 concrete numbers (statistics, dates, costs, rankings).
+- strongestCounterArgument must introduce a NEW specific fact or argument that does not already appear in otherSideStory. Never copy or rephrase sentences from otherSideStory — write the single sharpest distinct point.
+- Every sentence in the report must appear exactly once. Never reuse a sentence or its rephrased copy across otherSideStory, strongestCounterArgument, bothSidesAgreeOn, or disputedPoints.
+- bothSidesAgreeOn and disputedPoints must each contain at least 2 complete declarative sentences with different content.
+- sourceNotes must contain at least 2 source notes. Use strength "missing" only when no source is available. Mark strength "strong" only for government, intergovernmental, academic, or major news institutions; commercial sites and blogs are at most "weak".
 
 Schema:
 {

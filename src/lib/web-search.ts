@@ -256,12 +256,34 @@ export function formatEvidenceContext(
   return `\n\n### EVIDENCE POLICY\n${policy}\n\n### EN-OFFICIAL SOURCES\n${officialItems || noOfficial}${arabicItems ? `\n\n### AR-CONTEXT SOURCES\n${arabicItems}` : ''}`;
 }
 
+function wordTrigrams(text: string): Set<string> {
+  const words = (text || '').toLowerCase().split(/\s+/).filter(w => w.length > 1);
+  const grams = new Set<string>();
+  for (let i = 0; i < words.length - 2; i++) {
+    grams.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
+  }
+  return grams;
+}
+
+// Fraction of `a`'s word-trigrams that also appear in `b` — measures how much
+// of one field is recycled text from another (1 = fully contained copy).
+export function trigramContainment(a: string, b: string): number {
+  const gramsA = wordTrigrams(a);
+  if (gramsA.size < 4) return 0;
+  const gramsB = wordTrigrams(b);
+  let shared = 0;
+  for (const g of gramsA) if (gramsB.has(g)) shared++;
+  return shared / gramsA.size;
+}
+
 export function isRepetitive(text: string): boolean {
   if (!text || text.length < 50) return true;
   const sentences = text.split(/[.!?؟\n]+/).map(s => s.trim()).filter(s => s.length > 20);
   if (sentences.length < 2) return false;
+  // Real prose never repeats a 60-char sentence prefix; any duplicate in a
+  // short report body is recycled filler.
   const unique = new Set(sentences.map(s => s.toLowerCase().substring(0, 60)));
-  if (unique.size < sentences.length * 0.6) return true;
+  if (unique.size < sentences.length * 0.8) return true;
 
   // Template repetition: the same sentence skeleton recycled with one or two
   // words swapped ("كندا تقدم X أفضل ... وفقا لخبراء X" × 6). Sentence-prefix
