@@ -45,6 +45,7 @@ export function findNeutralityIssues(text: string): string[] {
 }
 
 export function softRewriteNeutrality(text: string): string {
+  if (!text || typeof text !== 'string') return text ?? '';
   let result = text;
   for (const [bad, replacement] of Object.entries(REPLACEMENTS)) {
     const regex = new RegExp(bad, 'gi');
@@ -54,7 +55,7 @@ export function softRewriteNeutrality(text: string): string {
 }
 
 export function cleanArabicLeakage(text: string): string {
-  if (!text || !/[؀-ۿ]/.test(text)) return text;
+  if (!text || typeof text !== 'string' || !/[؀-ۿ]/.test(text)) return text ?? '';
   let result = text;
   for (const [latin, arabic] of Object.entries(ARABIC_LEAKAGE_FIXES)) {
     result = result.replace(new RegExp(`(ال)?\\b${latin}\\b`, 'gi'), arabic);

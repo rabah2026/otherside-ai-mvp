@@ -422,7 +422,11 @@ Return valid JSON only using the required schema.`;
       );
     }
 
-    const rewrite = (s: string) => softRewriteNeutrality(isArabic ? cleanArabicLeakage(s) : s);
+    // Null-safe rewrite: real AI output may omit optional fields.
+    const rewrite = (s: string | null | undefined): string => {
+      if (!s || typeof s !== 'string') return s ?? '';
+      return softRewriteNeutrality(isArabic ? cleanArabicLeakage(s) : s);
+    };
 
     report.detectedStory = rewrite(report.detectedStory);
     report.mainParty = rewrite(report.mainParty);
@@ -433,7 +437,11 @@ Return valid JSON only using the required schema.`;
     if (report.bothSidesAgreeOn) report.bothSidesAgreeOn = report.bothSidesAgreeOn.map(rewrite);
     if (report.disputedPoints) report.disputedPoints = report.disputedPoints.map(rewrite);
     if (report.uncertaintyNotes) report.uncertaintyNotes = report.uncertaintyNotes.map(rewrite);
-    if (report.sourceNotes) report.sourceNotes = report.sourceNotes.map((s) => ({ ...s, note: rewrite(s.note) }));
+    if (report.sourceNotes) report.sourceNotes = report.sourceNotes.map((s) => ({
+      ...s,
+      note: rewrite(s.note),
+      title: s.title ? rewrite(s.title) : s.title,
+    }));
 
     return NextResponse.json({ report, demoMode, demoReason });
   } catch (err: any) {
