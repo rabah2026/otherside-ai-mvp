@@ -12,34 +12,62 @@ function arabicRatio(text: string): number {
   return arabic / letters.length;
 }
 
+function isFootballGoatClaim(text: string): boolean {
+  return /(ميسي|messi|lionel|ليونيل|رونالدو|ronaldo|cristiano|كريستيانو|مارادونا|maradona|بيليه|pele|pelé|الأفضل|افضل|greatest|goat|تاريخ)/i.test(text)
+    && /(لاعب|كرة|football|soccer|تاريخ|goat|الأفضل|افضل|greatest)/i.test(text);
+}
+
+function hasConversationalLeakage(text: string): boolean {
+  return /(أعطيك|اعطيك|لو أعطيتك|بتحطلي|هالاند|بس أربعة|sonder|sondern|\?\s*$)/i.test(text || '');
+}
+
 function isValidReport(r: any, isArabic: boolean): boolean {
   if (!r || typeof r !== 'object') return false;
-  if (!r.otherSideStory || r.otherSideStory.length < 100) return false;
-  if (!r.strongestCounterArgument || r.strongestCounterArgument.length < 40) return false;
-  if (isRepetitive(r.otherSideStory)) return false;
-  if (isRepetitive(r.strongestCounterArgument)) return false;
-  if (isArabic && arabicRatio(r.otherSideStory) < 0.5) return false;
+
+  const story = String(r.otherSideStory || '');
+  const counter = String(r.strongestCounterArgument || '');
+  const minStoryLength = isArabic ? 420 : 520;
+  const minCounterLength = isArabic ? 140 : 170;
+
+  if (story.length < minStoryLength) return false;
+  if (counter.length < minCounterLength) return false;
+  if (!Array.isArray(r.bothSidesAgreeOn) || r.bothSidesAgreeOn.length < 2) return false;
+  if (!Array.isArray(r.disputedPoints) || r.disputedPoints.length < 2) return false;
+  if (!Array.isArray(r.sourceNotes) || r.sourceNotes.length < 2) return false;
+  if (isRepetitive(story)) return false;
+  if (isRepetitive(counter)) return false;
+  if (hasConversationalLeakage(story) || hasConversationalLeakage(counter)) return false;
+  if (isArabic && arabicRatio(story) < 0.65) return false;
   return true;
 }
 
 export const maxDuration = 25;
 
-const SYSTEM_PROMPT = `You are OtherSide AI. Given any claim or narrative, present the other side's strongest fair argument using evidence and named sources.
+const SYSTEM_PROMPT = `You are OtherSide AI, a neutral counter-perspective engine.
 
-Rules:
-- Never give a verdict or say who is right.
-- Use careful language such as "according to", "publicly stated", and "the opposing view argues".
-- Write every JSON string value in the same language as the user input.
-- Do not repeat the same sentence or idea.
-- Use real named sources where possible.
+Your role is not to agree, disagree, rank, praise, mock, or choose a winner. Your role is to reconstruct the strongest fair opposing perspective.
+
+Hard rules:
+- Never give a verdict.
+- Never answer casually or conversationally.
+- Never say who is right, who is wrong, who is the best, or who wins.
+- If the input is subjective, such as "the greatest" or "the best", frame the other side around criteria, competing candidates, measurable achievements, historical context, and uncertainty.
+- Use named sources and institutions where possible.
+- Write every JSON string value in the user's language.
 - Return only valid JSON.
+
+Quality floor:
+- otherSideStory must be substantial: at least 3 paragraphs.
+- strongestCounterArgument must be a complete evidence-based paragraph.
+- bothSidesAgreeOn and disputedPoints must each contain at least 2 complete sentences.
+- sourceNotes must contain at least 2 source notes. Use strength "missing" only when no source is available.
 
 Schema:
 {
   "detectedStory": "neutral summary of the input claim",
   "mainParty": "party making the claim",
   "otherParty": "other party or affected side",
-  "otherSideStory": "2 or more paragraphs with evidence and context",
+  "otherSideStory": "3 or more substantial paragraphs with evidence, criteria, and context",
   "strongestCounterArgument": "the sharpest evidence-based point from the other side",
   "bothSidesAgreeOn": ["complete sentence", "complete sentence"],
   "disputedPoints": ["complete sentence", "complete sentence"],
@@ -58,8 +86,107 @@ Schema:
   "neutralNote": "neutral disclaimer"
 }`;
 
+function footballGoatReport(isArabic: boolean): OtherSideReport {
+  if (isArabic) {
+    return {
+      detectedStory: 'يطرح النص ادعاءً بأن ليونيل ميسي هو اللاعب الأفضل في تاريخ كرة القدم.',
+      mainParty: 'مؤيدو اعتبار ميسي اللاعب الأعظم تاريخيًا',
+      otherParty: 'أنصار مرشحين آخرين مثل بيليه ودييغو مارادونا وكريستيانو رونالدو',
+      otherSideStory: 'الرواية المقابلة لا تنكر مكانة ميسي الاستثنائية، لكنها ترفض تحويل لقب «الأفضل في التاريخ» إلى نتيجة محسومة بمعيار واحد. فأنصار بيليه مثلًا يستندون إلى هيمنته في زمن مختلف، وإلى ارتباط اسمه بثلاثة ألقاب لكأس العالم مع البرازيل، وهو إنجاز يصعب مقارنته مباشرة بعصر كرة القدم الحديثة لأن عدد المباريات، شكل البطولات، أساليب التدريب، وقوة الإعلام كانت مختلفة جذريًا. من هذا المنظور، المقارنة العادلة لا تبدأ بالسؤال: من الأكثر مهارة؟ بل بالسؤال: أي لاعب ترك الأثر الأكبر داخل شروط عصره؟\n\nويرى أنصار دييغو مارادونا أن معيار «حمل الفريق» يغيّر النتيجة. حجتهم أن مارادونا قدّم في كأس العالم 1986 نموذجًا نادرًا للاعب غيّر مسار بطولة كبرى تقريبًا بقدرات فردية وقيادة نفسية وفنية، كما أعاد تشكيل مكانة نابولي في كرة القدم الإيطالية في فترة كانت شديدة التنافس. وفق هذه القراءة، التفوق لا يُقاس فقط بالاستمرارية أو عدد الجوائز، بل بقدرة اللاعب على تغيير مصير فريق أقل اكتمالًا في لحظة تاريخية ضاغطة.\n\nأما أنصار كريستيانو رونالدو فيركّزون على معيار مختلف: الاستمرارية التهديفية، التكيف مع أكثر من دوري، الحضور في دوري أبطال أوروبا، والقدرة على المحافظة على مستوى عالٍ لسنوات طويلة في بيئات تكتيكية مختلفة. حجتهم ليست أن ميسي أقل موهبة، بل أن لقب «الأعظم» يمكن أن يُمنح للاعب جمع بين الإنتاج الرقمي، التحول البدني، النجاح في أكثر من منظومة، والتأثير التجاري والجماهيري العالمي. لذلك فالطرف الآخر يقول إن الادعاء يحتاج أولًا إلى تعريف المعيار: المهارة الخالصة، الألقاب، التأثير التاريخي، الاستمرارية، أو الأداء في البطولات الكبرى.',
+      strongestCounterArgument: 'أقوى حجة للطرف المقابل هي أن عبارة «الأفضل في التاريخ» ليست حقيقة قابلة للحسم دون تحديد معيار القياس. إذا كان المعيار هو الذروة الفنية في بطولة واحدة فقد يتقدم مارادونا عند بعض المحللين؛ وإذا كان المعيار هو الأثر العالمي وكأس العالم فقد يدخل بيليه بقوة؛ وإذا كان المعيار هو الاستمرارية التهديفية والتكيف بين الدوريات فقد تكون حجة كريستيانو رونالدو قوية. لذلك لا يعترض الطرف الآخر على عظمة ميسي، بل يعترض على تقديمها كحكم نهائي يتجاوز اختلاف العصور والمعايير.',
+      bothSidesAgreeOn: [
+        'يتفق الطرفان على أن ليونيل ميسي من أعظم لاعبي كرة القدم في العصر الحديث وفي التاريخ عمومًا.',
+        'يتفق الطرفان على أن المقارنة بين أجيال مختلفة في كرة القدم معقدة بسبب تغير البطولات والتكتيك واللياقة وقواعد اللعبة.'
+      ],
+      disputedPoints: [
+        'الخلاف الأساسي هو ما إذا كان الفوز بكأس العالم والجوائز الفردية كافيًا لحسم لقب الأفضل تاريخيًا لصالح ميسي.',
+        'هناك خلاف حول وزن المهارة الفردية مقارنة بالاستمرارية الرقمية والتأثير التاريخي والقدرة على تغيير مصير الفرق.'
+      ],
+      sourceNotes: [
+        {
+          sourceType: 'historical_record',
+          title: 'سجل كأس العالم للاعبين والمنتخبات',
+          publisher: 'FIFA',
+          date: 'تحديثات متعددة',
+          note: 'يفيد في مقارنة إنجازات اللاعبين في كأس العالم، خصوصًا عند مناقشة بيليه ومارادونا وميسي ضمن سياق البطولات الكبرى.',
+          strength: 'strong'
+        },
+        {
+          sourceType: 'reporting',
+          title: 'سجل الكرة الذهبية وتاريخ الفائزين',
+          publisher: 'France Football / Ballon d’Or',
+          date: 'تحديثات سنوية',
+          note: 'يفيد في فهم وزن الجوائز الفردية في حجة ميسي مقارنة بغيره، مع التنبيه إلى أن الجائزة نفسها ليست معيارًا وحيدًا للحسم.',
+          strength: 'medium'
+        },
+        {
+          sourceType: 'historical_record',
+          title: 'سجلات دوري أبطال أوروبا والإحصاءات التهديفية',
+          publisher: 'UEFA',
+          date: 'تحديثات متعددة',
+          note: 'تدعم حجة المقارنة الرقمية والاستمرارية، وهي نقطة يستخدمها أنصار كريستيانو رونالدو كثيرًا في نقاشات الأفضل تاريخيًا.',
+          strength: 'strong'
+        }
+      ],
+      uncertaintyNotes: [
+        'لا يوجد معيار عالمي ملزم يحدد معنى «الأفضل في التاريخ»، لذلك تعتمد النتيجة على وزن كل معيار.',
+        'المقارنة بين العصور تبقى غير مباشرة لأن ظروف التدريب والتحكيم والإعلام وعدد المباريات تغيّرت كثيرًا.'
+      ],
+      neutralNote: 'هذا ليس حكمًا. التقرير يعرض حجة الطرف المقابل دون ترجيح لاعب على آخر.'
+    };
+  }
+
+  return {
+    detectedStory: 'The input claims that Lionel Messi is the greatest football player in history.',
+    mainParty: 'Supporters of Messi as the greatest player ever',
+    otherParty: 'Supporters of other candidates such as Pelé, Diego Maradona, and Cristiano Ronaldo',
+    otherSideStory: 'The opposing view does not deny Messi’s exceptional status. It argues that “greatest ever” cannot be settled without first defining the criteria. Pelé supporters emphasize dominance in a different era and his association with three World Cup-winning Brazil squads, while noting that direct comparison across eras is distorted by changes in training, media, tournament formats, and the global football calendar.\n\nMaradona supporters often shift the criterion toward peak influence and carrying power. They point to the 1986 World Cup and Napoli’s rise as examples of a player changing the competitive fate of teams under intense pressure. In that framing, greatness is not only consistency or awards, but the capacity to alter history with a less complete supporting structure.\n\nCristiano Ronaldo supporters use another benchmark: elite scoring longevity, adaptation across leagues, Champions League production, and sustained performance in different tactical environments. Their point is not necessarily that Messi lacks genius, but that a final judgment depends on whether the evaluator values skill, peak, trophies, longevity, portability, or historical influence most.',
+    strongestCounterArgument: 'The strongest counterargument is that “greatest in history” is not a single factual claim unless the measurement standard is defined first. By peak tournament influence, Maradona has a case; by World Cup-era mythology and global historical impact, Pelé has a case; by longevity, scoring scale, and adaptation across leagues, Cristiano Ronaldo has a case. The counter-position therefore challenges the certainty of the claim rather than Messi’s greatness itself.',
+    bothSidesAgreeOn: [
+      'Both sides agree that Lionel Messi is one of the greatest players in football history.',
+      'Both sides agree that comparing players across eras is difficult because football conditions changed significantly.'
+    ],
+    disputedPoints: [
+      'The central disagreement is whether Messi’s combination of World Cup success, club dominance, and individual awards is enough to settle the historical debate.',
+      'The sides disagree over how much weight should be given to skill, peak influence, international trophies, longevity, and adaptation across different football environments.'
+    ],
+    sourceNotes: [
+      {
+        sourceType: 'historical_record',
+        title: 'World Cup player and team records',
+        publisher: 'FIFA',
+        date: 'Various updates',
+        note: 'Useful for comparing claims about World Cup performance and historical impact among Pelé, Maradona, and Messi.',
+        strength: 'strong'
+      },
+      {
+        sourceType: 'reporting',
+        title: 'Ballon d’Or winners archive',
+        publisher: 'France Football / Ballon d’Or',
+        date: 'Annual updates',
+        note: 'Useful for understanding individual-award arguments, while recognizing that awards do not settle every historical criterion.',
+        strength: 'medium'
+      },
+      {
+        sourceType: 'historical_record',
+        title: 'UEFA Champions League statistics and records',
+        publisher: 'UEFA',
+        date: 'Various updates',
+        note: 'Relevant to longevity and elite club-performance arguments, especially in comparisons involving Cristiano Ronaldo and Messi.',
+        strength: 'strong'
+      }
+    ],
+    uncertaintyNotes: [
+      'There is no universally binding standard for “greatest ever,” so the conclusion changes with the chosen criteria.',
+      'Era-to-era comparison remains indirect because training, rules, media, and match volume changed substantially.'
+    ],
+    neutralNote: 'This is not a verdict. It presents the opposing argument without ranking the players.'
+  };
+}
+
 function getMockReport(text: string, isArabic: boolean): OtherSideReport {
   const isElonOpenAI = /openai|musk|ماسك|أوبن/i.test(text);
+  if (isFootballGoatClaim(text)) return footballGoatReport(isArabic);
 
   if (isArabic) {
     if (isElonOpenAI) return OPENAI_REPORT_AR;
@@ -67,8 +194,8 @@ function getMockReport(text: string, isArabic: boolean): OtherSideReport {
       detectedStory: `يطرح النص ادعاءً بشأن: "${text.substring(0, 120)}..."`,
       mainParty: 'صاحب الادعاء',
       otherParty: 'الطرف الآخر',
-      otherSideStory: 'يرى الطرف الآخر أن الادعاءات الواردة في النص تفتقر إلى السياق الكامل. وبينما يُقرّ بوجود الحدث، فإنه يجادل بأن التفسير المُقدَّم يتجاهل عوامل بنيوية وقيودًا خارجية أثّرت في مسار الأحداث.\n\nيستند هذا الطرف في موقفه إلى وقائع موثّقة تُظهر أن الإجراءات المُتّخذة جاءت ردًا على تحديات محددة، لا ابتداءً منه. كما يُؤكد أن التقارير الإعلامية التي تناولت القضية اعتمدت على مصدر واحد دون التحقق من الرواية المقابلة.',
-      strongestCounterArgument: 'الحجة الأقوى للطرف الآخر هي أن التقييم المُقدَّم يقيس النتائج بمعيار مختلف عمّا أُعلن في البداية كهدف. ومن ثَمّ فإن مقارنة ما حدث بما كان مأمولًا يتطلب أولًا تحديد الظروف التي صِيغت فيها تلك التوقعات.',
+      otherSideStory: 'يرى الطرف الآخر أن الادعاءات الواردة في النص تفتقر إلى السياق الكامل. وبينما يُقرّ بوجود الحدث، فإنه يجادل بأن التفسير المُقدَّم يتجاهل عوامل بنيوية وقيودًا خارجية أثّرت في مسار الأحداث.\n\nيستند هذا الطرف في موقفه إلى وقائع موثّقة تُظهر أن الإجراءات المُتّخذة جاءت ردًا على تحديات محددة، لا ابتداءً منه. كما يُؤكد أن التقارير الإعلامية التي تناولت القضية اعتمدت على مصدر واحد دون التحقق من الرواية المقابلة.\n\nومن زاويته، لا يكفي عرض النتيجة النهائية وحدها؛ إذ يجب النظر إلى التسلسل الزمني، وتوزيع المسؤولية، وما إذا كانت الوقائع المختارة تمثل الصورة كاملة أم مجرد جزء منها.',
+      strongestCounterArgument: 'الحجة الأقوى للطرف الآخر هي أن التقييم المُقدَّم يقيس النتائج بمعيار مختلف عمّا أُعلن في البداية كهدف. ومن ثَمّ فإن مقارنة ما حدث بما كان مأمولًا يتطلب أولًا تحديد الظروف التي صِيغت فيها تلك التوقعات والمعايير التي يُفترض القياس عليها.',
       bothSidesAgreeOn: [
         'الحدث المُشار إليه وقع فعلًا وتُوثّقه مصادر متعددة.',
         'الأطراف المعنية فاعلون رئيسيون في هذا المجال ولهم مواقف معلنة.'
@@ -82,13 +209,22 @@ function getMockReport(text: string, isArabic: boolean): OtherSideReport {
           sourceType: 'reporting',
           title: 'تغطية إعلامية للحدث',
           publisher: 'وسائل إعلام متعددة',
-          date: '2024',
+          date: 'غير محدد',
           note: 'تتباين التغطيات في تناول هذا الموضوع؛ يُنصح بمراجعة مصادر متنوعة للحصول على الصورة الكاملة.',
           strength: 'medium'
+        },
+        {
+          sourceType: 'unknown',
+          title: 'مصادر أولية غير مرفقة في النص',
+          publisher: 'غير محدد',
+          date: 'غير محدد',
+          note: 'غياب المصدر الأصلي يجعل التقرير محدودًا ويزيد الحاجة إلى التحقق قبل تبني أي رواية.',
+          strength: 'missing'
         }
       ],
       uncertaintyNotes: [
-        'لم تُقدَّم مصادر أولية في النص، مما يُصعّب التحقق المستقل من المعلومات الواردة.'
+        'لم تُقدَّم مصادر أولية في النص، مما يُصعّب التحقق المستقل من المعلومات الواردة.',
+        'قد تتغير قوة الحجة إذا توفرت وثائق أو تصريحات أصلية من الأطراف المعنية.'
       ],
       neutralNote: 'هذا ليس حكمًا. الهدف هو عرض الجانب الآخر فقط، دون البتّ في من هو على حق.'
     };
@@ -114,13 +250,22 @@ function getMockReport(text: string, isArabic: boolean): OtherSideReport {
         sourceType: 'reporting',
         title: 'News coverage of the dispute',
         publisher: 'Multiple outlets',
-        date: '2024',
+        date: 'Unspecified',
         note: 'Multiple news organizations have covered this topic from different angles. Cross-referencing primary documents directly is recommended.',
         strength: 'medium'
+      },
+      {
+        sourceType: 'unknown',
+        title: 'Primary source not included in input',
+        publisher: 'Unknown',
+        date: 'Unspecified',
+        note: 'The absence of primary material limits the report and increases the need for verification.',
+        strength: 'missing'
       }
     ],
     uncertaintyNotes: [
-      'No primary sources were included in the input, limiting independent structural verification.'
+      'No primary sources were included in the input, limiting independent structural verification.',
+      'The strength of the counter-position may change if original documents or statements are provided.'
     ],
     neutralNote: 'This is not a verdict. It presents the other side\'s argument without judging who is right.'
   };
@@ -134,32 +279,44 @@ export async function POST(req: Request) {
     }
 
     const isArabic = lang === 'ar' || /[؀-ۿ]/.test(text);
+    const footballGoat = isFootballGoatClaim(text);
 
-    const searchQuery = isArabic
-      ? `${text.substring(0, 150)} تحليل مراجع`
-      : `${text.substring(0, 150)} analysis sources perspectives`;
+    const searchQuery = footballGoat
+      ? (isArabic
+        ? 'ليونيل ميسي بيليه مارادونا كريستيانو رونالدو الأفضل في التاريخ كأس العالم الكرة الذهبية دوري أبطال أوروبا'
+        : 'Lionel Messi Pele Maradona Cristiano Ronaldo greatest footballer World Cup Ballon d Or Champions League')
+      : (isArabic
+        ? `${text.substring(0, 150)} تحليل مراجع`
+        : `${text.substring(0, 150)} analysis sources perspectives`);
     const searchResults = await searchForContext(searchQuery, lang);
     const searchContext = formatSearchContext(searchResults, isArabic);
+
+    const subjectiveGuidance = footballGoat
+      ? (isArabic
+        ? '\n\nإرشاد خاص: هذا ادعاء تفضيلي عن الأفضل في التاريخ. لا تقل إن ميسي هو الأفضل ولا إن غيره هو الأفضل. اعرض الطرف المقابل عبر معايير مقارنة واضحة: بيليه، مارادونا، كريستيانو رونالدو، الأثر التاريخي، كأس العالم، الاستمرارية، الجوائز، ودوري الأبطال.'
+        : '\n\nSpecial guidance: this is a subjective greatest-ever claim. Do not decide the winner. Present the counter-side through criteria: Pelé, Maradona, Cristiano Ronaldo, historical impact, World Cup, longevity, awards, and Champions League record.')
+      : '';
 
     const langInstruction = isArabic
       ? `\n\nArabic language rule: keep the JSON keys in English, but write every text value in formal Arabic only. Foreign source names, brand names, and URLs may remain in their original spelling. Summarize foreign sources in Arabic.`
       : `\n\nLanguage: Write all JSON string values in clear, formal English. Every list item must be a complete sentence.`;
 
     const modeInstr: Record<string, string> = {
-      quick: isArabic ? 'Mode: QUICK. Write 2 focused Arabic paragraphs in otherSideStory and include sources where possible.' : 'Mode: QUICK — 2 focused paragraphs for otherSideStory, 3 sources minimum.',
-      deep: isArabic ? 'Mode: DEEP. Write 4 Arabic paragraphs covering position, evidence, named actors, and timeline.' : 'Mode: DEEP — 4 paragraphs for otherSideStory (position / evidence / named actors / timeline), 5+ sources with direct quotes and statistics.',
-      history: isArabic ? 'Mode: HISTORY MIRROR. Focus on omitted voices and historical context, written in Arabic.' : 'Mode: HISTORY MIRROR — Focus on omitted voices. Cite archival sources, testimonies, academic historians, international body reports.',
+      quick: isArabic ? 'Mode: QUICK. Write at least 3 focused Arabic paragraphs in otherSideStory and include at least 2 source notes.' : 'Mode: QUICK. Write at least 3 focused paragraphs and include at least 2 source notes.',
+      deep: isArabic ? 'Mode: DEEP. Write 4 Arabic paragraphs covering position, evidence, named actors, and timeline.' : 'Mode: DEEP. Write 4 paragraphs covering position, evidence, named actors, and timeline.',
+      history: isArabic ? 'Mode: HISTORY MIRROR. Focus on omitted voices and historical context, written in Arabic.' : 'Mode: HISTORY MIRROR. Focus on omitted voices and historical context.',
     };
 
     const strictnessInstr: Record<string, string> = {
-      strict: isArabic ? 'Source strictness: strict. If a source is uncertain, mark its strength as missing.' : 'Strictness: STRICT — Only cite sources you are confident exist. Mark any uncertain source as strength: "missing".',
-      reasoned: isArabic ? 'Source strictness: reasoned. Separate evidence from inference clearly.' : 'Strictness: REASONED — Combine documented evidence with clearly-labeled logical inference.',
-      balanced: isArabic ? 'Source strictness: balanced. Combine evidence with careful reasoning and mark uncertainty.' : 'Strictness: BALANCED — Mix direct evidence with reasonable inference; label speculative elements as "reportedly".',
+      strict: isArabic ? 'Source strictness: strict. If a source is uncertain, mark its strength as missing.' : 'Source strictness: strict. If a source is uncertain, mark its strength as missing.',
+      reasoned: isArabic ? 'Source strictness: reasoned. Separate evidence from inference clearly.' : 'Source strictness: reasoned. Separate evidence from inference clearly.',
+      balanced: isArabic ? 'Source strictness: balanced. Combine evidence with careful reasoning and mark uncertainty.' : 'Source strictness: balanced. Combine evidence with careful reasoning and mark uncertainty.',
     };
 
     const userPrompt = `${modeInstr[mode] || modeInstr.quick}
 ${strictnessInstr[sourceStrictness] || strictnessInstr.balanced}
 ${langInstruction}
+${subjectiveGuidance}
 ${searchContext}
 
 ${isArabic ? 'Text to analyze. Respond with Arabic values only:' : 'INPUT TO ANALYZE:'}
@@ -178,8 +335,9 @@ Return one JSON object only.`;
 
     if (isArabic && !firstResult.demoMode && !isValidReport(report, true)) {
       const retryPrompt = `${langInstruction}
+${subjectiveGuidance}
 
-The previous result was not suitable for an Arabic interface. Regenerate the report from the original text. Keep the JSON keys exactly as required. Write all user-facing values in formal Arabic. Do not translate brand names or URLs.
+The previous result was too short, casual, or unsuitable for an Arabic report. Regenerate it from the original text. Keep JSON keys exactly as required. Write all user-facing values in formal Arabic. Produce at least 3 paragraphs in otherSideStory, at least 2 source notes, and no conversational phrases.
 
 Original text:
 ${text}
