@@ -142,22 +142,32 @@ export async function POST(req: Request) {
     const searchContext = formatSearchContext(searchResults, isArabic);
 
     const langInstruction = isArabic
-      ? `\n\nتعليمة لغوية: اكتب جميع قيم JSON النصية باللغة العربية الفصحى فقط. لا تكتب أي كلمة إنجليزية داخل القيم النصية (ما عدا أسماء العلم كـ OpenAI وMicrosoft). كل عنصر في القوائم يجب أن يكون جملةً عربيةً كاملةً.`
+      ? `\n\nتعليمة لغوية صارمة: اكتب جميع قيم JSON النصية بالعربية الفصحى فقط. لا تكتب أي شرح أو قيمة نصية بالإنجليزية إلا أسماء العلم أو العلامات التجارية أو روابط URL. إذا كانت المصادر أجنبية، لخّص دلالتها بالعربية.`
       : `\n\nLanguage: Write all JSON string values in clear, formal English. Every list item must be a complete sentence.`;
 
     const modeInstr: Record<string, string> = {
-      quick: 'Mode: QUICK — 2 focused paragraphs for otherSideStory, 3 sources minimum.',
-      deep: 'Mode: DEEP — 4 paragraphs for otherSideStory (position / evidence / named actors / timeline), 5+ sources with direct quotes and statistics.',
-      history: 'Mode: HISTORY MIRROR — Focus on omitted voices. Cite archival sources, testimonies, academic historians, international body reports.',
+      quick: isArabic ? 'النمط: سريع — فقرتان مركزتان في otherSideStory، مع ثلاثة مصادر على الأقل عند الإمكان.' : 'Mode: QUICK — 2 focused paragraphs for otherSideStory, 3 sources minimum.',
+      deep: isArabic ? 'النمط: عميق — أربع فقرات تتناول الموقف والأدلة والأطراف والتسلسل الزمني، مع خمسة مصادر أو أكثر عند الإمكان.' : 'Mode: DEEP — 4 paragraphs for otherSideStory (position / evidence / named actors / timeline), 5+ sources with direct quotes and statistics.',
+      history: isArabic ? 'النمط: مرآة تاريخية — ركّز على الأصوات المحذوفة أو المهمشة، واستند إلى الأرشيف والشهادات والمؤرخين وتقارير الهيئات الدولية.' : 'Mode: HISTORY MIRROR — Focus on omitted voices. Cite archival sources, testimonies, academic historians, international body reports.',
     };
 
     const strictnessInstr: Record<string, string> = {
-      strict: 'Strictness: STRICT — Only cite sources you are confident exist. Mark any uncertain source as strength: "missing".',
-      reasoned: 'Strictness: REASONED — Combine documented evidence with clearly-labeled logical inference.',
-      balanced: 'Strictness: BALANCED — Mix direct evidence with reasonable inference; label speculative elements as "reportedly".',
+      strict: isArabic ? 'صرامة المصادر: صارم — لا تذكر إلا المصادر التي تثق بوجودها، وضع strength: "missing" عند غياب المصدر.' : 'Strictness: STRICT — Only cite sources you are confident exist. Mark any uncertain source as strength: "missing".',
+      reasoned: isArabic ? 'صرامة المصادر: استدلالي — اجمع بين الدليل الموثق والاستنتاج المنطقي المعلن بوضوح.' : 'Strictness: REASONED — Combine documented evidence with clearly-labeled logical inference.',
+      balanced: isArabic ? 'صرامة المصادر: متوازن — امزج بين الأدلة المباشرة والاستدلال المعقول، وميّز العناصر غير المؤكدة بوضوح.' : 'Strictness: BALANCED — Mix direct evidence with reasonable inference; label speculative elements as "reportedly".',
     };
 
-    const userPrompt = `${modeInstr[mode] || modeInstr.quick}
+    const userPrompt = isArabic
+      ? `${modeInstr[mode] || modeInstr.quick}
+${strictnessInstr[sourceStrictness] || strictnessInstr.balanced}
+${langInstruction}
+${searchContext}
+
+النص المطلوب تحليله:
+${text}
+
+أعد كائن JSON واحدًا فقط. كن محددًا: اذكر الأشخاص والمؤسسات والتواريخ والأرقام والمصادر المسماة. يجب أن تكون كل القيم النصية بالعربية.`
+      : `${modeInstr[mode] || modeInstr.quick}
 ${strictnessInstr[sourceStrictness] || strictnessInstr.balanced}
 ${langInstruction}
 ${searchContext}
@@ -182,7 +192,7 @@ Return a single JSON object. Be specific: name real people, organizations, dates
       if (isRepetitive(r.otherSideStory)) return false;
       if (isRepetitive(r.strongestCounterArgument)) return false;
       // In Arabic mode, reject output that leaked into English so we fall
-      // back to the fully-Arabic demo report instead of showing mixed text.
+      // back to the fully-Arabic saved report instead of showing mixed text.
       if (isArabic && arabicRatio(r.otherSideStory) < 0.5) return false;
       return true;
     };
