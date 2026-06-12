@@ -24,6 +24,15 @@ function hasConversationalLeakage(text: string): boolean {
   return /(أعطيك|اعطيك|لو أعطيتك|بتحطلي|sonder|sondern)/i.test(text || '');
 }
 
+function hasExcessiveQuestions(text: string): boolean {
+  if (!text) return false;
+  const questionMarks = (text.match(/[؟?]/g) || []).length;
+  // A report body should state arguments, not ask questions.
+  // More than 4 question marks in the narrative is a sign the model
+  // wrote a list of rhetorical questions instead of a proper counter-narrative.
+  return questionMarks > 4;
+}
+
 // Subjective "greatest/best ever" claims in any domain (sports, science,
 // art…) — used to steer the model toward criteria-based comparison rather
 // than picking a winner.
@@ -54,6 +63,10 @@ function isValidReport(r: any, isArabic: boolean): { ok: boolean; reason: string
   if (isRepetitive(counter)) return { ok: false, reason: 'counter_repetitive' };
   if (hasConversationalLeakage(story) || hasConversationalLeakage(counter))
     return { ok: false, reason: 'conversational_leakage' };
+  if (hasExcessiveQuestions(story))
+    return { ok: false, reason: `excessive_questions_in_story:${(story.match(/[؟?]/g) || []).length}` };
+  if (hasExcessiveQuestions(counter))
+    return { ok: false, reason: `excessive_questions_in_counter:${(counter.match(/[؟?]/g) || []).length}` };
   if (isArabic) {
     const ratio = arabicRatio(story);
     if (ratio < 0.45) return { ok: false, reason: `arabic_ratio:${ratio.toFixed(2)}` };
@@ -71,15 +84,16 @@ Hard rules:
 - Never give a verdict.
 - Never answer casually or conversationally.
 - Never say who is right, who is wrong, who is the best, or who wins.
-- If the input is subjective, such as "the greatest" or "the best", frame the other side around criteria, competing candidates, measurable achievements, historical context, and uncertainty.
-- Use named sources and institutions where possible.
+- NEVER pose rhetorical or open questions in the report body. Every sentence must be a declarative statement presenting evidence, a named alternative, an achievement, or a documented fact. Do not write "هل هو معيار الأفضلية؟" or "Is goals the right metric?" — instead state the alternative directly: "Critics point to X, who achieved Y according to Z."
+- If the input is subjective, such as "the greatest" or "the best", name specific real alternative candidates with their documented achievements, and explain why each represents a legitimate competing claim using concrete facts.
+- Use named sources, institutions, and real statistics where possible.
 - Write every JSON string value in the user's language.
 - Return only valid JSON.
 
 Quality floor:
-- otherSideStory must be substantial: at least 3 paragraphs.
-- strongestCounterArgument must be a complete evidence-based paragraph.
-- bothSidesAgreeOn and disputedPoints must each contain at least 2 complete sentences.
+- otherSideStory must be substantial: at least 3 declarative paragraphs naming specific people, institutions, or documented facts.
+- strongestCounterArgument must be a single complete declarative paragraph citing a specific named person, statistic, or documented record.
+- bothSidesAgreeOn and disputedPoints must each contain at least 2 complete declarative sentences.
 - sourceNotes must contain at least 2 source notes. Use strength "missing" only when no source is available.
 
 Schema:
