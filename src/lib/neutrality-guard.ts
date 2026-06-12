@@ -35,6 +35,8 @@ const ARABIC_LEAKAGE_FIXES: Record<string, string> = {
   dispute: 'نزاع',
   argument: 'حجة',
   narrative: 'رواية',
+  sonder: 'بل',
+  sondern: 'بل',
 };
 
 export function findNeutralityIssues(text: string): string[] {
@@ -57,5 +59,7 @@ export function cleanArabicLeakage(text: string): string {
   for (const [latin, arabic] of Object.entries(ARABIC_LEAKAGE_FIXES)) {
     result = result.replace(new RegExp(`(ال)?\\b${latin}\\b`, 'gi'), arabic);
   }
+  // Strip isolated Latin fragments that sometimes leak into Arabic output while keeping URLs and brand-like tokens intact.
+  result = result.replace(/(?<!https?:\/\/)(?<![A-Za-z0-9./_-])\b[a-z]{3,}\b(?![A-Za-z0-9./_-])/gi, '').replace(/\s{2,}/g, ' ').trim();
   return result;
 }
