@@ -67,6 +67,12 @@ function isValidReport(r: any, isArabic: boolean): { ok: boolean; reason: string
     return { ok: false, reason: `excessive_questions_in_story:${(story.match(/[؟?]/g) || []).length}` };
   if (hasExcessiveQuestions(counter))
     return { ok: false, reason: `excessive_questions_in_counter:${(counter.match(/[؟?]/g) || []).length}` };
+  // The same sentence appearing as both an agreement and a dispute is a
+  // contradiction — a sign the model padded the lists instead of thinking.
+  const norm = (s: unknown) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 60);
+  const agreeSet = new Set((r.bothSidesAgreeOn as unknown[]).map(norm));
+  if ((r.disputedPoints as unknown[]).some((p) => agreeSet.has(norm(p))))
+    return { ok: false, reason: 'agree_disputed_overlap' };
   if (isArabic) {
     const ratio = arabicRatio(story);
     if (ratio < 0.45) return { ok: false, reason: `arabic_ratio:${ratio.toFixed(2)}` };
@@ -84,7 +90,11 @@ Hard rules:
 - Never give a verdict.
 - Never answer casually or conversationally.
 - Never say who is right, who is wrong, who is the best, or who wins.
+- otherSideStory must OPPOSE or complicate the input claim. Never write a story that restates, supports, or amplifies the claim — that is the main party's side, not the other side. For "Canada is a great immigration choice", the other side is costs, obstacles, downsides, and people for whom it went badly — NOT more praise of Canada.
+- Stay strictly on the topic of the input. Do not introduce comparisons to countries, people, or products the input never mentioned, even if web sources mention them. Web sources serve the input's claim; they do not redefine it.
 - NEVER pose rhetorical or open questions in the report body. Every sentence must be a declarative statement presenting evidence, a named alternative, an achievement, or a documented fact. Do not write "هل هو معيار الأفضلية؟" or "Is goals the right metric?" — instead state the alternative directly: "Critics point to X, who achieved Y according to Z."
+- NEVER attribute claims to anonymous "experts" ("وفقًا لما قاله خبراء", "experts say"). Name the institution, report, dataset, or person — or present the point as the other side's argument without fake attribution.
+- bothSidesAgreeOn and disputedPoints must not overlap: a sentence cannot be both agreed and disputed.
 - If the input is subjective, such as "the greatest" or "the best", name specific real alternative candidates with their documented achievements, and explain why each represents a legitimate competing claim using concrete facts.
 - Use named sources, institutions, and real statistics where possible.
 - Write every JSON string value in the user's language.

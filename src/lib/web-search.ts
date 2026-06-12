@@ -60,6 +60,26 @@ const REPUTABLE_NEWS_PARTS = [
   'sciencemag.org',
 ];
 
+// Social/video/UGC platforms — never usable as report evidence regardless
+// of tier; their presence produced "strong source: tiktok.com" citations.
+const BLOCKED_DOMAIN_PARTS = [
+  'youtube.com',
+  'youtu.be',
+  'tiktok.com',
+  'facebook.com',
+  'instagram.com',
+  'twitter.com',
+  'x.com',
+  'reddit.com',
+  'quora.com',
+  'pinterest.com',
+  'snapchat.com',
+  'threads.net',
+  'medium.com',
+  'blogspot.com',
+  'wordpress.com',
+];
+
 const ARABIC_CONTEXT_TERMS = [
   'السعودية', 'الرياض', 'جدة', 'مكة', 'الإمارات', 'دبي', 'قطر', 'الكويت',
   'مصر', 'القاهرة', 'السودان', 'الخرطوم', 'اليمن', 'العراق', 'الأردن',
@@ -93,6 +113,12 @@ function isReputableNews(url: string): boolean {
   const host = hostname(url);
   if (!host) return false;
   return REPUTABLE_NEWS_PARTS.some((part) => hostMatchesPart(host, part));
+}
+
+function isBlockedDomain(url: string): boolean {
+  const host = hostname(url);
+  if (!host) return true;
+  return BLOCKED_DOMAIN_PARTS.some((part) => hostMatchesPart(host, part));
 }
 
 export function hasArabicContext(text: string): boolean {
@@ -146,7 +172,8 @@ export async function searchEvidenceForReport(input: {
   englishQuery: string;
   arabicQuery?: string;
 }): Promise<{ officialEnglish: SearchResult[]; arabicContext: SearchResult[]; all: SearchResult[] }> {
-  const englishResults = await serperSearch(input.englishQuery, 'en', 10);
+  const englishResults = (await serperSearch(input.englishQuery, 'en', 10))
+    .filter((r) => !isBlockedDomain(r.url));
 
   // Tier 1: primary/official domains. Tier 2: reputable news agencies.
   // Tier 3: top general results — so every topic gets some real citation
@@ -162,6 +189,7 @@ export async function searchEvidenceForReport(input: {
   const shouldFetchArabic = input.isArabic && (input.isArabicContext || hasArabicContext(input.text));
   const arabicContext = shouldFetchArabic
     ? (await serperSearch(input.arabicQuery || `${input.text.substring(0, 120)} مصدر رسمي عربي`, 'ar', 6))
+        .filter((r) => !isBlockedDomain(r.url))
         .slice(0, 3)
         .map((result) => ({ ...result, evidenceTier: 'arabic_context' as const }))
     : [];
@@ -233,5 +261,20 @@ export function isRepetitive(text: string): boolean {
   const sentences = text.split(/[.!?؟\n]+/).map(s => s.trim()).filter(s => s.length > 20);
   if (sentences.length < 2) return false;
   const unique = new Set(sentences.map(s => s.toLowerCase().substring(0, 60)));
-  return unique.size < sentences.length * 0.6;
+  if (unique.size < sentences.length * 0.6) return true;
+
+  // Template repetition: the same sentence skeleton recycled with one or two
+  // words swapped ("كندا تقدم X أفضل ... وفقا لخبراء X" × 6). Sentence-prefix
+  // dedup misses it, but word-trigram reuse across the whole text exposes it:
+  // genuine prose rarely repeats trigrams, templates repeat most of them.
+  const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 1);
+  if (words.length >= 40) {
+    const trigrams = new Set<string>();
+    const total = words.length - 2;
+    for (let i = 0; i < total; i++) {
+      trigrams.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
+    }
+    if (trigrams.size / total < 0.65) return true;
+  }
+  return false;
 }
