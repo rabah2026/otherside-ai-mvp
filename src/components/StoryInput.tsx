@@ -1,16 +1,33 @@
-import React from 'react';
-import { AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertCircle, ChevronDown, Layers, SlidersHorizontal } from 'lucide-react';
 import { useConfig } from '@/context/ConfigContext';
+import { SourceStrictness } from '@/types';
 
 interface Props {
   value: string;
   onChange: (text: string) => void;
   onSubmit: (text: string) => void;
   loading: boolean;
+  sourceStrictness: SourceStrictness;
+  onSourceStrictnessChange: (strictness: SourceStrictness) => void;
 }
 
-export default function StoryInput({ value, onChange, onSubmit, loading }: Props) {
+const STRICTNESS_LABELS: Record<SourceStrictness, { en: string; ar: string }> = {
+  balanced: { en: 'Balanced', ar: 'متوازن' },
+  strict: { en: 'Strict', ar: 'صارم' },
+  reasoned: { en: 'Reasoned', ar: 'استدلالي' },
+};
+
+export default function StoryInput({
+  value,
+  onChange,
+  onSubmit,
+  loading,
+  sourceStrictness,
+  onSourceStrictnessChange,
+}: Props) {
   const { t, lang } = useConfig();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +60,50 @@ export default function StoryInput({ value, onChange, onSubmit, loading }: Props
           >
             {lang === 'ar' ? 'مسح' : 'Clear'}
           </button>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white/70 dark:bg-neutral-950/30 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((current) => !current)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-xs text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors"
+        >
+          <span className="flex items-center gap-2 font-medium">
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            {lang === 'ar' ? 'الإعدادات المتقدمة' : 'Advanced settings'}
+          </span>
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {advancedOpen && (
+          <div className="px-4 pb-4 pt-1 border-t border-neutral-100 dark:border-neutral-800/70 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                <Layers className="w-3.5 h-3.5 text-neutral-400" />
+                <span>{t('strictnessFilter')}</span>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {(['balanced', 'strict', 'reasoned'] as SourceStrictness[]).map((strictness) => (
+                  <button
+                    key={strictness}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => onSourceStrictnessChange(strictness)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-medium border transition-all ${
+                      lang === 'ar' ? '' : 'font-mono uppercase'
+                    } ${
+                      sourceStrictness === strictness
+                        ? 'bg-slate-900 dark:bg-white text-white dark:text-black border-slate-900 dark:border-white'
+                        : 'bg-transparent text-neutral-500 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
+                    } disabled:opacity-50`}
+                  >
+                    {lang === 'ar' ? STRICTNESS_LABELS[strictness].ar : STRICTNESS_LABELS[strictness].en}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
