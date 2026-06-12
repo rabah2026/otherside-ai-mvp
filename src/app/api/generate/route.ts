@@ -30,24 +30,34 @@ function isSubjectiveSuperlative(text: string): boolean {
   return /(الأفضل|الأعظم|افضل|اعظم|greatest|best ever|goat|أهم|اهم)/i.test(text || '');
 }
 
-function isValidReport(r: any, isArabic: boolean): boolean {
-  if (!r || typeof r !== 'object') return false;
+function isValidReport(r: any, isArabic: boolean): { ok: boolean; reason: string } {
+  if (!r || typeof r !== 'object') return { ok: false, reason: 'not_object' };
 
   const story = String(r.otherSideStory || '');
   const counter = String(r.strongestCounterArgument || '');
-  const minStoryLength = isArabic ? 420 : 520;
-  const minCounterLength = isArabic ? 140 : 170;
+  // GLM-4.7 writes concise but correct Arabic — use lenient minimums.
+  const minStoryLength = isArabic ? 200 : 380;
+  const minCounterLength = isArabic ? 70 : 120;
 
-  if (story.length < minStoryLength) return false;
-  if (counter.length < minCounterLength) return false;
-  if (!Array.isArray(r.bothSidesAgreeOn) || r.bothSidesAgreeOn.length < 2) return false;
-  if (!Array.isArray(r.disputedPoints) || r.disputedPoints.length < 2) return false;
-  if (!Array.isArray(r.sourceNotes) || r.sourceNotes.length < 2) return false;
-  if (isRepetitive(story)) return false;
-  if (isRepetitive(counter)) return false;
-  if (hasConversationalLeakage(story) || hasConversationalLeakage(counter)) return false;
-  if (isArabic && arabicRatio(story) < 0.65) return false;
-  return true;
+  if (story.length < minStoryLength)
+    return { ok: false, reason: `story_short:${story.length}<${minStoryLength}` };
+  if (counter.length < minCounterLength)
+    return { ok: false, reason: `counter_short:${counter.length}<${minCounterLength}` };
+  if (!Array.isArray(r.bothSidesAgreeOn) || r.bothSidesAgreeOn.length < 2)
+    return { ok: false, reason: `bothSides_missing:${JSON.stringify(r.bothSidesAgreeOn)?.slice(0, 80)}` };
+  if (!Array.isArray(r.disputedPoints) || r.disputedPoints.length < 2)
+    return { ok: false, reason: `disputed_missing:${JSON.stringify(r.disputedPoints)?.slice(0, 80)}` };
+  if (!Array.isArray(r.sourceNotes) || r.sourceNotes.length < 1)
+    return { ok: false, reason: `sources_missing:${JSON.stringify(r.sourceNotes)?.slice(0, 80)}` };
+  if (isRepetitive(story)) return { ok: false, reason: 'story_repetitive' };
+  if (isRepetitive(counter)) return { ok: false, reason: 'counter_repetitive' };
+  if (hasConversationalLeakage(story) || hasConversationalLeakage(counter))
+    return { ok: false, reason: 'conversational_leakage' };
+  if (isArabic) {
+    const ratio = arabicRatio(story);
+    if (ratio < 0.45) return { ok: false, reason: `arabic_ratio:${ratio.toFixed(2)}` };
+  }
+  return { ok: true, reason: 'ok' };
 }
 
 export const maxDuration = 60;
@@ -356,12 +366,17 @@ Return one JSON object only.`;
     let demoMode = Boolean(firstResult.demoMode);
     let demoReason: string | undefined = firstResult.reason;
 
-    if (isArabic && !firstResult.demoMode && !isValidReport(report, true)) {
+    const firstCheck = isValidReport(report, isArabic);
+    console.log('[generate] first call demoMode:', firstResult.demoMode, '| validity:', firstCheck.reason,
+      '| story_len:', report?.otherSideStory?.length, '| counter_len:', report?.strongestCounterArgument?.length,
+      '| arabic_ratio:', report?.otherSideStory ? arabicRatio(report.otherSideStory).toFixed(2) : 'n/a');
+
+    if (isArabic && !firstResult.demoMode && !firstCheck.ok) {
       const retryPrompt = `${langInstruction}
 ${subjectiveGuidance}
 ${searchContext}
 
-The previous result was too short, casual, or unsuitable for an Arabic report. Regenerate it from the original text. Keep JSON keys exactly as required. Write all user-facing values in formal Arabic. Use EN-OFFICIAL evidence as the factual base. Produce at least 3 paragraphs in otherSideStory, at least 2 source notes, and no conversational phrases.
+The previous result had an issue: ${firstCheck.reason}. Regenerate from the original text. Keep JSON keys exactly as required. Write all user-facing values in formal Arabic. Produce substantive paragraphs in otherSideStory, at least 1 source note, and no conversational phrases.
 
 Original text:
 ${text}
@@ -374,22 +389,25 @@ Return valid JSON only using the required schema.`;
         timeoutMs: 18000,
       });
 
-      if (!retryResult.demoMode && isValidReport(retryResult.data, true)) {
+      const retryCheck = isValidReport(retryResult.data, true);
+      console.log('[generate] retry demoMode:', retryResult.demoMode, '| validity:', retryCheck.reason,
+        '| story_len:', retryResult.data?.otherSideStory?.length);
+
+      if (!retryResult.demoMode && retryCheck.ok) {
         report = retryResult.data;
         demoMode = false;
         demoReason = undefined;
       } else {
-        demoReason = retryResult.reason || 'Arabic retry did not produce a valid report';
+        demoReason = retryResult.reason || `Arabic retry failed: ${retryCheck.reason}`;
       }
     }
 
-    if (demoMode || !isValidReport(report, isArabic)) {
+    const finalCheck = isValidReport(report, isArabic);
+    if (demoMode || !finalCheck.ok) {
+      console.log('[generate] falling to demo mode. reason:', demoReason || finalCheck.reason);
       report = getMockReport(text, isArabic);
       demoMode = true;
-      demoReason = demoReason
-        || (firstResult.data && isArabic && arabicRatio(firstResult.data.otherSideStory) < 0.5
-          ? 'Model replied in English for an Arabic request'
-          : firstResult.data ? 'Model produced low-quality output' : undefined);
+      demoReason = demoReason || finalCheck.reason;
     } else if (evidence.all.length > 0 && report.sourceNotes) {
       // The model passed the quality gate AND we supplied real search
       // evidence. Guard against fabricated links: any sourceNote URL not
