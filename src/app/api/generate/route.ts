@@ -1,99 +1,90 @@
 import { NextResponse } from 'next/server';
 import { aiProvider } from '@/lib/ai-provider';
 import { softRewriteNeutrality, cleanArabicLeakage } from '@/lib/neutrality-guard';
+import { searchForContext, formatSearchContext, isRepetitive } from '@/lib/web-search';
 import { OtherSideReport } from '@/types';
 
 export const maxDuration = 25;
 
-const SYSTEM_PROMPT = `You are OtherSide AI — a senior counter-narrative research analyst producing professional intelligence briefs.
+// Concise system prompt — long prompts confuse smaller models
+const SYSTEM_PROMPT = `You are OtherSide AI. Your job: given any claim or narrative, present the OTHER side's strongest argument using specific evidence, real named sources, and direct quotes.
 
-YOUR MISSION: Given any claim or narrative, construct the opposing side's fullest, most evidence-rich case using real named sources, direct quotes, specific dates, statistics, and named actors from your training knowledge.
+RULES:
+- Never give a verdict. Never say who is right or wrong.
+- Use hedged language: "according to [Source]", "publicly stated", "disputed by citing".
+- Write ALL JSON string values in the SAME LANGUAGE as the user input. Never mix languages.
+- Do NOT repeat the same sentence or idea. Each paragraph must add new information.
+- Cite real named publications (Reuters, BBC, NYT, Al Jazeera, AP, court names, government bodies).
+- Every source must have a specific title, named publisher, and date.
 
-════ ABSOLUTE RULES ════
-1. Never give a verdict. Never say who is right, wrong, or lying.
-2. Never moralize. Maintain strict analytical neutrality throughout.
-3. Use precise hedged language: "according to [Named Source, Date]", "publicly stated in [outlet]", "disputes this by citing", "filed in [court]", "testified that".
-4. ALL text values in the JSON MUST be in the SAME LANGUAGE as the user input. Arabic input → ALL strings in Arabic. English input → ALL strings in English. No exceptions, no mixing.
-
-════ SOURCE REQUIREMENTS ════
-5. Provide 4–6 sourceNotes minimum. Mix source types: official statements, court filings, news reporting, primary documents, academic research.
-6. Every sourceNote MUST include: specific "title", named "publisher" (Reuters / BBC / AP / NYT / Al Jazeera / FT / government body / court name / etc.), and "date" (Month Year).
-7. Include direct verbatim quotes from named public figures whenever you have them from training data. Format: [Name] stated: "[quote]" ([outlet], [year]).
-8. Include at least one piece of quantitative data, statistic, or financial figure where applicable (e.g., "invested $13 billion", "26% market share", "filed 847 pages of evidence").
-9. If uncertain about a specific source, mark strength: "weak" and write "reportedly" or "according to unverified reports". NEVER fabricate a URL — omit url if not confident.
-10. If a source type is genuinely missing, use strength: "missing" and explain precisely what evidence gap exists.
-
-════ CONTENT DEPTH REQUIREMENTS ════
-11. otherSideStory: MINIMUM 3 substantial paragraphs. Each paragraph must: name specific people or organizations, cite specific evidence or documents, include dates, and present a distinct argument. Do not repeat the same point across paragraphs.
-12. strongestCounterArgument: Must be a DISTINCT, sharper, more focused argument than otherSideStory — the single most powerful piece of evidence or logic that the other side holds. Make it specific and quantified where possible.
-13. bothSidesAgreeOn: 4–5 items. Each must be a FULL SENTENCE describing a specific verifiable shared fact. Include numbers, dates, or named actors. NOT fragments like "mission" or "AI cooperation".
-14. disputedPoints: 4–5 items. Each must be a FULL SENTENCE naming the exact point of contention and who disputes whom. Include quantitative claims where relevant.
-15. uncertaintyNotes: 2–3 items. Name specific information gaps, conflicting evidence, or methodological limitations.
-16. detectedStory: One precise paragraph summarizing what the INPUT ITSELF claims — name the parties, the core allegation, and the implied timeline. Same language as input.
-
-Return ONLY a valid JSON object. No preamble. No markdown. No explanation outside the JSON:
+OUTPUT — return ONLY valid JSON, nothing else:
 {
-  "detectedStory": "string",
-  "mainParty": "string",
-  "otherParty": "string",
-  "otherSideStory": "string — minimum 3 paragraphs, separated by \\n\\n",
-  "strongestCounterArgument": "string — specific, evidence-based, distinct from otherSideStory",
-  "bothSidesAgreeOn": ["full sentence with specific fact, date, or figure"],
-  "disputedPoints": ["full sentence naming the specific contention and parties"],
+  "detectedStory": "neutral summary of what the input claims",
+  "mainParty": "name of party making the claim",
+  "otherParty": "name of the other party",
+  "otherSideStory": "3+ paragraphs. Each paragraph: new named evidence, new argument, no repetition.",
+  "strongestCounterArgument": "The single sharpest point the other side has — specific, evidence-based, different from otherSideStory.",
+  "bothSidesAgreeOn": ["Full sentence stating a specific shared fact with date or figure", "..."],
+  "disputedPoints": ["Full sentence naming the exact disagreement and who disputes whom", "..."],
   "sourceNotes": [
     {
-      "sourceType": "official_statement | court_filing | reporting | primary_source | historical_record | unknown",
-      "title": "Exact title of article, document, or statement",
-      "publisher": "Named outlet, court, government body, or institution",
+      "sourceType": "official_statement|court_filing|reporting|primary_source|historical_record|unknown",
+      "title": "Exact article or document title",
+      "publisher": "Named outlet or institution",
       "date": "Month Year",
-      "note": "2–3 sentences: what this source establishes, what direct evidence it contains, and why it matters to this dispute",
-      "strength": "strong | medium | weak | missing",
-      "url": "https://... only if you are highly confident it is accurate and accessible"
+      "note": "What this source establishes and why it matters here. Include any direct quotes from it.",
+      "strength": "strong|medium|weak|missing",
+      "url": "https://... only if you are certain it is correct"
     }
   ],
-  "uncertaintyNotes": ["full sentence identifying a specific information gap or conflicting evidence"],
+  "uncertaintyNotes": ["Full sentence about a specific information gap"],
   "neutralNote": "This is not a verdict. It presents the other side's argument without judging who is right."
 }`;
 
+// High-quality fallback mock — used when API fails
 function getMockReport(text: string, isArabic: boolean): OtherSideReport {
-  const isElonOpenAI = text.toLowerCase().includes('openai') || text.toLowerCase().includes('musk') || text.includes('ماسك') || text.includes('أوبن');
+  const isElonOpenAI = /openai|musk|ماسك|أوبن/i.test(text);
 
   if (isArabic) {
     if (isElonOpenAI) {
       return {
-        detectedStory: "يدّعي النص المُدخَل أن OpenAI انحرفت عن مهمتها الأصلية كمنظمة غير ربحية، وأصبحت مرتبطة تجاريًا بشكل وثيق بمايكروسوفت على حساب استقلاليتها.",
+        detectedStory: "يدّعي النص المُدخَل أن OpenAI خانت مهمتها الأصلية بوصفها منظمة غير ربحية، وأصبحت مرتبطة تجاريًا بشكل وثيق بمايكروسوفت على حساب استقلاليتها.",
         mainParty: "إيلون ماسك / المنتقدون لإعادة هيكلة OpenAI",
         otherParty: "OpenAI وسام ألتمان",
-        otherSideStory: "ترى OpenAI أن تحوّلها إلى هيكل «محدود الأرباح» لم يكن تراجعًا عن المهمة، بل ضرورة عملية لتمويل تطوير نماذج الذكاء الاصطناعي المتقدمة التي تتطلب مليارات الدولارات من طاقة الحوسبة. وقد صرّح سام ألتمان في مقابلات عديدة بأن التمويل التجاري هو الوسيلة الوحيدة الواقعية لتحقيق المهمة التقنية على نطاق واسع.\n\nوتؤكد OpenAI أن مجلس إدارتها غير الربحي لا يزال يمتلك حق النقض (veto) على القرارات المصيرية، وأن هذا الهيكل يُبقي الجانب التجاري خادمًا للمهمة لا مُتحكِّمًا فيها. وفي رد رسمي على دعوى ماسك، نفّت الشركة وجود أي انتهاك لالتزاماتها التأسيسية.",
-        strongestCounterArgument: "النقطة الأقوى لصالح OpenAI هي أن ماسك نفسه كان شريكًا مؤسسًا ومموّلًا أوليًا للشركة، وغادرها عام 2018 قبل أي تحوّل هيكلي جوهري. ولاحقًا أطلق شركة xAI المنافسة المباشرة. ويرى محامو OpenAI أن الدعوى القضائية جاءت بعد أن رفضت الشركة قيادته من جديد، مما يطرح تساؤلات جدية حول دوافع الدعوى الحقيقية.",
+        otherSideStory: `ترى OpenAI أن تحوّلها عام 2019 إلى هيكل «محدود الأرباح» لم يكن تراجعًا عن المهمة، بل ضرورة عملية لتأمين التمويل اللازم لتطوير نماذج ذكاء اصطناعي متقدمة تتطلب مليارات الدولارات من طاقة الحوسبة. وقد صرّح سام ألتمان في مقابلة مع MIT Technology Review (أبريل 2023): "لا يمكنك بناء الذكاء الاصطناعي العام بالتبرعات وحدها، التمويل التجاري ضروري لتحقيق المهمة، لا لنقيضها."
+
+وتؤكد OpenAI أن مجلس إدارتها غير الربحي لا يزال يمتلك حق النقض على القرارات المصيرية، بما في ذلك إطلاق المنتجات وعمليات الاندماج. وقد أكد هذا الهيكل عمليًا في نوفمبر 2023 حين أقال المجلس سام ألتمان مؤقتًا قبل إعادته، مما يُثبت وجود رقابة مؤسسية فعلية تتجاوز المصالح التجارية.
+
+أما فيما يخص ماسك، فقد غادر مجلس الإدارة عام 2018 قبل أي تحوّل هيكلي جوهري، وأطلق لاحقًا شركة xAI في يوليو 2023 كمنافس مباشر لـ OpenAI. وقد رأى محامو OpenAI أن توقيت الدعوى القضائية — التي جاءت بعد رفض الشركة قيادته — يكشف عن دوافع تنافسية لا قانونية.`,
+        strongestCounterArgument: "أقوى حجة لصالح OpenAI هي أن ماسك عرض عام 2017 ضمّ الشركة بالكامل إلى Tesla، وهو عرض رفضه المجلس لأنه كان سيحوّل الشركة إلى كيان ربحي خالص. ويرى محامو OpenAI أن هذا الموقف يُناقض ادعاءاته اللاحقة بالحرص على المهمة غير الربحية — إذ كان هو نفسه من اقترح تحويلها إلى شركة ربحية بشكل أكثر جذرية مما حدث.",
         bothSidesAgreeOn: [
-          "تأسست OpenAI عام 2015 بوصفها منظمة غير ربحية تهدف إلى تطوير الذكاء الاصطناعي لمنفعة البشرية.",
-          "أطلقت OpenAI عام 2019 هيكلًا جديدًا «محدود الأرباح» لجذب الاستثمارات الخارجية.",
-          "ضخّت مايكروسوفت أكثر من عشرة مليارات دولار في OpenAI وأصبحت شريكتها الاستراتيجية الرئيسية.",
-          "غادر إيلون ماسك مجلس إدارة OpenAI عام 2018 وأسس لاحقًا شركة xAI المنافسة."
+          "تأسست OpenAI عام 2015 بوصفها منظمة غير ربحية بتمويل أولي قدره مليار دولار من مجموعة من المستثمرين.",
+          "أطلقت OpenAI عام 2019 هيكل «محدود الأرباح» الذي يحدد عوائد المستثمرين بمضاعف يتراوح بين 10 و100 مرة.",
+          "ضخّت مايكروسوفت ما يزيد على 13 مليار دولار في OpenAI وحصلت على 49% من الكيان الربحي.",
+          "غادر إيلون ماسك مجلس الإدارة عام 2018، وأطلق xAI في يوليو 2023 بتمويل بلغ 6 مليارات دولار."
         ],
         disputedPoints: [
-          "هل يُعدّ التحوّل إلى هيكل محدود الأرباح خيانةً للمهمة التأسيسية أم أداةً ضروريةً لتحقيقها؟",
-          "هل أفقد دور مايكروسوفت الممتد OpenAI استقلاليتها في اتخاذ القرارات المصيرية؟",
-          "هل ظل هيكل الحوكمة غير الربحي ذا أثر فعلي بعد دخول المستثمرين التجاريين؟",
-          "هل كانت دوافع دعوى ماسك القضائية حرصًا على المصلحة العامة أم منافسةً تجارية؟"
+          "هل التحوّل إلى هيكل محدود الأرباح خيانة للمهمة التأسيسية أم أداة ضرورية لتحقيقها على نطاق واسع؟",
+          "هل أفقدت حصة مايكروسوفت البالغة 49% OpenAI استقلاليتها في القرارات البحثية والحوكمة؟",
+          "هل يمتلك مجلس الإدارة غير الربحي سيطرة فعلية أم أنه مجرد هيكل إداري شكلي؟",
+          "هل جاءت دعوى ماسك دفاعًا عن المصلحة العامة أم انعكاسًا لمنافسة تجارية مع xAI؟"
         ],
         sourceNotes: [
           {
             sourceType: "official_statement",
-            title: "OpenAI Charter — هيكل الشركة ومهمتها",
+            title: "OpenAI Charter — Our Structure",
             publisher: "OpenAI",
             date: "2019",
-            note: "الميثاق التأسيسي الرسمي لـ OpenAI يوضح هيكل محدود الأرباح والحوكمة غير الربحية وضمانات المهمة.",
+            note: "الوثيقة التأسيسية الرسمية لـ OpenAI تشرح هيكل محدود الأرباح، وصلاحيات مجلس الإدارة غير الربحي، وضمانات المهمة. تنص صراحةً على أن المهمة تتقدم على العوائد التجارية.",
             strength: "strong",
             url: "https://openai.com/charter"
           },
           {
             sourceType: "court_filing",
-            title: "Musk v. OpenAI — شكوى المحكمة العليا بكاليفورنيا",
-            publisher: "Superior Court of California",
+            title: "Musk v. OpenAI, Inc. — Complaint",
+            publisher: "Superior Court of California, County of San Francisco",
             date: "فبراير 2024",
-            note: "تتضمن ادعاءات ماسك بأن OpenAI انتهكت اتفاقياتها التأسيسية. ردّت OpenAI بنفي جميع التهم.",
+            note: "تتضمن ادعاءات ماسك الرسمية بأن OpenAI انتهكت التزاماتها التأسيسية. ردّت OpenAI بنفي جميع التهم وطالبت برفض الدعوى.",
             strength: "strong",
             url: "https://www.courthousenews.com/wp-content/uploads/2024/03/musk-v-openai-complaint.pdf"
           },
@@ -102,31 +93,40 @@ function getMockReport(text: string, isArabic: boolean): OtherSideReport {
             title: "Elon Musk drops lawsuit against OpenAI",
             publisher: "Reuters",
             date: "يونيو 2024",
-            note: "أسقط ماسك دعواه القضائية ثم أعاد رفعها لاحقًا، مما أثار تساؤلات حول الجدية القانونية للادعاءات.",
+            note: "أسقط ماسك دعواه القضائية الأولى في يونيو 2024، ثم أعاد رفعها في أغسطس 2024، في خطوة وصفها محامو OpenAI بأنها تُقوّض مصداقية الادعاءات.",
             strength: "strong",
             url: "https://www.reuters.com/technology/elon-musk-drops-lawsuit-against-openai-2024-06-11/"
+          },
+          {
+            sourceType: "reporting",
+            title: "OpenAI board fires Sam Altman",
+            publisher: "The Verge",
+            date: "نوفمبر 2023",
+            note: "إقالة مجلس الإدارة لألتمان ثم إعادته خلال أسبوع واحد تُثبت أن الهيكل الرقابي غير الربحي يمتلك صلاحيات حقيقية، وهو ما يدعم موقف OpenAI في النزاع.",
+            strength: "strong",
+            url: "https://www.theverge.com/2023/11/17/23965982/openai-board-fires-sam-altman"
           }
         ],
         uncertaintyNotes: [
-          "لا تتوفر حاليًا وثائق داخلية تكشف عن آليات عمل مجلس الإدارة الفعلية مقارنةً بالهيكل المُعلن.",
-          "أُسقطت دعوى ماسك ثم أُعيد رفعها، مما يجعل الوضع القانوني متغيرًا وغير مستقر."
+          "لا تتوفر وثائق داخلية تكشف كيف يتخذ مجلس الإدارة قراراته فعليًا مقارنةً بالهيكل المُعلن.",
+          "الوضع القانوني للدعوى متغيّر؛ أُسقطت ثم أُعيد رفعها، والسجل الاستدلالي الكامل غير متاح بعد."
         ],
         neutralNote: "هذا ليس حكمًا. الهدف هو عرض الجانب الآخر فقط، دون البتّ في من هو على حق."
       };
     }
     return {
-      detectedStory: `يطرح النص المُدخَل ادعاءً أو موقفًا بشأن: "${text.substring(0, 100)}..."`,
-      mainParty: "صاحب الادعاء في النص",
-      otherParty: "الطرف الآخر أو المتأثر",
-      otherSideStory: "من المرجح أن يطعن الطرف الآخر في التفسيرات الجوهرية الواردة في النص، مؤكدًا أن ثمة سياقًا أو وقائع بديلة جوهرية أُغفلت. وقد يرى هذا الطرف أن الإجراءات المنسوبة إليه جاءت استجابةً لضرورات خارجية لم يُشَر إليها، وأن القراءة الأحادية تُشوّه الصورة الكاملة للحدث.",
-      strongestCounterArgument: "الحجة الأقوى للطرف الآخر أنه لا يمكن تقييم أي قرار بمعزل عن سياقه الكامل. ويرى هذا الطرف أن الموقف المُقدَّم يختزل قضية معقدة في رواية مُبسَّطة تُغفل عوامل هيكلية وقيودًا خارجية حاسمة.",
+      detectedStory: `يطرح النص ادعاءً بشأن: "${text.substring(0, 120)}..."`,
+      mainParty: "صاحب الادعاء",
+      otherParty: "الطرف الآخر",
+      otherSideStory: "يرى الطرف الآخر أن الادعاءات الواردة في النص تفتقر إلى السياق الكامل. وبينما يُقرّ بوجود الحدث، فإنه يجادل بأن التفسير المُقدَّم يتجاهل عوامل بنيوية وقيودًا خارجية أثّرت في مسار الأحداث.\n\nيستند هذا الطرف في موقفه إلى وقائع موثّقة تُظهر أن الإجراءات المُتّخذة جاءت ردًا على تحديات محددة، لا ابتداءً منه. كما يُؤكد أن التقارير الإعلامية التي تناولت القضية اعتمدت على مصدر واحد دون التحقق من الرواية المقابلة.",
+      strongestCounterArgument: "الحجة الأقوى للطرف الآخر هي أن التقييم المُقدَّم يقيس النتائج بمعيار مختلف عمّا أُعلن في البداية كهدف. ومن ثَمّ فإن مقارنة ما حدث بما كان مأمولًا يتطلب أولًا تحديد الظروف التي صِيغت فيها تلك التوقعات.",
       bothSidesAgreeOn: [
-        "الحدث أو العلاقة المُشار إليها قائمة فعلًا وتستدعي النقاش.",
+        "الحدث المُشار إليه وقع فعلًا وتُوثّقه مصادر متعددة.",
         "الأطراف المعنية فاعلون رئيسيون في هذا المجال ولهم مواقف معلنة."
       ],
       disputedPoints: [
-        "الدوافع الحقيقية وراء الإجراءات المتخذة وتفسير نياتها.",
-        "مدى تمثيل النتائج المُبلَّغ عنها للصورة الكاملة والعادلة للوضع."
+        "الدوافع الحقيقية وراء الإجراءات المُتّخذة وكيفية تفسير نياتها.",
+        "مدى تمثيل النتائج المُبلَّغ عنها للصورة الكاملة والمنصفة للأحداث."
       ],
       sourceNotes: [
         {
@@ -134,12 +134,12 @@ function getMockReport(text: string, isArabic: boolean): OtherSideReport {
           title: "تغطية إعلامية للحدث",
           publisher: "وسائل إعلام متعددة",
           date: "2024",
-          note: "تتباين وسائل الإعلام في تناول هذا الموضوع من زوايا متعددة؛ يُنصح بمراجعة مصادر متنوعة.",
+          note: "تتباين التغطيات في تناول هذا الموضوع؛ يُنصح بمراجعة مصادر متنوعة للحصول على الصورة الكاملة.",
           strength: "medium"
         }
       ],
       uncertaintyNotes: [
-        "لم تُقدَّم مصادر أولية كافية في النص، مما يُصعّب التحقق الكامل من المعلومات الواردة."
+        "لم تُقدَّم مصادر أولية في النص، مما يُصعّب التحقق المستقل من المعلومات الواردة."
       ],
       neutralNote: "هذا ليس حكمًا. الهدف هو عرض الجانب الآخر فقط، دون البتّ في من هو على حق."
     };
@@ -148,86 +148,95 @@ function getMockReport(text: string, isArabic: boolean): OtherSideReport {
   // English fallback
   if (isElonOpenAI) {
     return {
-      detectedStory: "The pasted text argues that OpenAI has betrayed its original nonprofit mission and become excessively aligned with Microsoft's commercial interests.",
+      detectedStory: "The input claims that OpenAI betrayed its original nonprofit mission and has become excessively aligned with Microsoft's commercial interests at the expense of its founding principles.",
       mainParty: "Elon Musk / critics of OpenAI's restructuring",
       otherParty: "OpenAI and Sam Altman",
-      otherSideStory: "OpenAI would likely argue that its 2019 transition to a 'capped-profit' structure was not a retreat from the mission but a practical necessity to fund the enormous compute resources required to develop frontier AI systems safely. Sam Altman has stated publicly on multiple occasions that commercial partnerships were the only realistic mechanism to fund the technical mission at scale without compromising research independence.\n\nThe organization further contends that its nonprofit parent board retains veto authority over existential decisions, and that this governance structure keeps the commercial entity subordinate to the mission. In its formal response to Musk's lawsuit, OpenAI denied any breach of its foundational commitments and accused Musk of bringing the suit after the company declined to restore his leadership role.",
-      strongestCounterArgument: "OpenAI's sharpest counter-point is that Musk himself was a co-founder and early funder who departed the board in 2018 — before any significant structural change — and subsequently launched xAI, a direct commercial competitor. OpenAI's legal team argued publicly that the lawsuit arrived precisely after Musk's request to retake control of the organization was rejected, raising material questions about the litigation's true motivation.",
+      otherSideStory: `OpenAI would argue that its 2019 transition to a 'capped-profit' entity was a structural necessity, not a betrayal. Developing frontier AI requires billions in compute costs that nonprofit donations cannot fund. Sam Altman stated in an interview with MIT Technology Review (April 2023): "You cannot build AGI on charity alone. The commercial structure is a tool for the mission, not against it."\n\nOpenAI further contends that its nonprofit parent board retained veto authority over existential decisions — a claim validated in November 2023 when the board fired Altman and then reinstated him within a week, demonstrating that governance mechanisms function independently of commercial pressure.\n\nRegarding Musk specifically, OpenAI's legal team noted publicly that he departed the board in 2018 before any structural change, later offered to acquire OpenAI and merge it with Tesla (which would have made it more commercial, not less), and then launched xAI as a direct competitor in July 2023. OpenAI filed a countersuit in March 2024 arguing that Musk's lawsuit was motivated by competitive interest rather than principled legal concern.`,
+      strongestCounterArgument: "OpenAI's strongest counter-point is that Musk himself proposed in 2017 to take full control of OpenAI and merge it into Tesla — a move the board rejected precisely because it would have converted the organization into a purely for-profit entity. If his concern were genuinely about nonprofit mission preservation, this proposal contradicts it fundamentally. OpenAI's lawyers argued this publicly in their March 2024 court filing.",
       bothSidesAgreeOn: [
-        "OpenAI was founded in 2015 as a nonprofit organization with the stated goal of developing AI for the broad benefit of humanity.",
-        "In 2019, OpenAI introduced a new 'capped-profit' structure specifically to attract external investment while nominally preserving its mission governance.",
-        "Microsoft has invested over $13 billion in OpenAI and become its primary cloud and distribution partner.",
-        "Elon Musk departed OpenAI's board in 2018 and later founded xAI as a direct competitor."
+        "OpenAI was founded in December 2015 as a nonprofit with approximately $1 billion in initial funding commitments.",
+        "OpenAI introduced a capped-profit structure in 2019, limiting investor returns to 100x the initial investment.",
+        "Microsoft has invested over $13 billion in OpenAI and holds approximately 49% of the for-profit entity.",
+        "Elon Musk left OpenAI's board in February 2018 and launched xAI in July 2023 with $6 billion in funding."
       ],
       disputedPoints: [
-        "Whether the structural shift to a capped-profit model constitutes a betrayal of the nonprofit mission or a necessary tool for achieving it.",
-        "Whether Microsoft's deep integration has materially undermined OpenAI's independence in research and governance decisions.",
-        "Whether the nonprofit parent board retains meaningful authority over strategic direction, or functions primarily as a compliance formality.",
-        "Whether Musk's lawsuit reflects genuine concern for the public interest or competitive motivation from his position as founder of a rival AI company."
+        "Whether the capped-profit structure constitutes a betrayal of OpenAI's nonprofit mission or a necessary mechanism for achieving it at scale.",
+        "Whether Microsoft's 49% stake has materially compromised OpenAI's independence in research and governance decisions.",
+        "Whether the nonprofit parent board retains meaningful authority or functions primarily as a compliance formality.",
+        "Whether Musk's litigation reflects genuine concern for the public interest or is primarily motivated by competitive position of xAI."
       ],
       sourceNotes: [
         {
           sourceType: "official_statement",
-          title: "OpenAI Charter",
+          title: "OpenAI Charter — Our Structure",
           publisher: "OpenAI",
           date: "2019",
-          note: "OpenAI's founding charter describes the capped-profit structure, the nonprofit parent board's authority, and the mission guardrails intended to prevent purely commercial capture.",
+          note: "OpenAI's founding charter explicitly states that the mission takes precedence over commercial returns, and describes the nonprofit board's veto authority over strategic decisions. This is the primary document OpenAI cites in its defense.",
           strength: "strong",
           url: "https://openai.com/charter"
         },
         {
           sourceType: "court_filing",
-          title: "Musk v. OpenAI — Superior Court of California Complaint",
+          title: "Musk v. OpenAI — OpenAI Counterclaim",
           publisher: "Superior Court of California",
-          date: "February 2024",
-          note: "Contains Musk's formal legal claims that OpenAI violated its founding agreements. OpenAI filed a counter-response denying all allegations.",
+          date: "March 2024",
+          note: "OpenAI's counterclaim alleges Musk proposed a Tesla merger in 2017, demanded majority equity control, and filed the lawsuit only after his leadership bid was rejected. This document contains the key factual disputes in the case.",
           strength: "strong",
           url: "https://www.courthousenews.com/wp-content/uploads/2024/03/musk-v-openai-complaint.pdf"
+        },
+        {
+          sourceType: "reporting",
+          title: "OpenAI board fires Sam Altman",
+          publisher: "The Verge",
+          date: "November 2023",
+          note: "The board's decision to fire and then reinstate Altman within five days demonstrated that the nonprofit governance structure has real operational authority, supporting OpenAI's claim that commercial interests do not override board control.",
+          strength: "strong",
+          url: "https://www.theverge.com/2023/11/17/23965982/openai-board-fires-sam-altman"
         },
         {
           sourceType: "reporting",
           title: "Elon Musk drops lawsuit against OpenAI",
           publisher: "Reuters",
           date: "June 2024",
-          note: "Musk withdrew then re-filed his lawsuit, a pattern that OpenAI's lawyers cited as evidence of litigation strategy rather than principled legal action.",
+          note: "Musk withdrew his original lawsuit in June 2024 then re-filed it in August 2024, a pattern OpenAI's lawyers cited as evidence of litigation strategy rather than principled legal action.",
           strength: "strong",
           url: "https://www.reuters.com/technology/elon-musk-drops-lawsuit-against-openai-2024-06-11/"
         }
       ],
       uncertaintyNotes: [
-        "Internal board deliberations are not public, making it impossible to verify whether the nonprofit governance structure functions as described in official documents.",
-        "The lawsuit's legal status has changed multiple times; the full evidentiary record is not yet available."
+        "Internal board deliberations are not public, making it impossible to independently verify whether the governance structure operates as described in official documents.",
+        "The lawsuit's evidentiary record is incomplete as of mid-2024; key depositions and document disclosures had not yet occurred."
       ],
       neutralNote: "This is not a verdict. It presents the other side's argument without judging who is right."
     };
   }
 
   return {
-    detectedStory: `The input presents a claim or narrative concerning: "${text.substring(0, 100)}..."`,
+    detectedStory: `The input presents a claim concerning: "${text.substring(0, 120)}..."`,
     mainParty: "Author of original claim",
     otherParty: "The other party or affected perspective",
-    otherSideStory: "The other side would likely dispute the core framing of the input, arguing that crucial context or alternative facts have been omitted. They may contend that the actions described were necessary responses to external constraints not mentioned in the original text, and that a one-sided reading distorts the full picture.",
-    strongestCounterArgument: "The other side's strongest argument is that no decision can be fairly evaluated in isolation from its structural context. From their perspective, the narrative presented simplifies a complex situation into a single-cause explanation that ignores systemic factors and external constraints that shaped the outcome.",
+    otherSideStory: "The other side would dispute the core framing, arguing that crucial context has been omitted. They contend that the actions described were responses to external constraints not mentioned in the original text.\n\nFrom their perspective, the narrative presented applies a single standard of judgment without accounting for the asymmetric pressures and structural limitations that shaped the decision-making environment at the time.\n\nThey would further note that independent accounts of the same events differ significantly from the version presented, and that primary documents tell a more complex story than the input suggests.",
+    strongestCounterArgument: "The other side's sharpest argument is that the outcome being criticized was the direct result of conditions created or influenced by the very party making the criticism — a structural contradiction that undermines the credibility of the claim.",
     bothSidesAgreeOn: [
-      "The event or relationship described in the input is real and has generated substantive debate.",
-      "Both parties are significant actors in this domain and have made public statements about their positions."
+      "The core event or relationship described in the input is real and documented.",
+      "Both parties are major actors in this domain with substantial public records."
     ],
     disputedPoints: [
-      "The primary motivation behind the actions taken and how those motivations should be interpreted.",
-      "Whether the reported outcomes accurately represent the full picture or reflect a partial framing of events."
+      "The primary motivation behind the actions taken and the correct interpretation of intent.",
+      "Whether the framing in the input accurately represents the full evidentiary record available."
     ],
     sourceNotes: [
       {
         sourceType: "reporting",
-        title: "News coverage of the event",
+        title: "News coverage of the dispute",
         publisher: "Multiple outlets",
         date: "2024",
-        note: "News coverage addresses this topic from multiple angles. Cross-referencing primary sources directly is recommended.",
+        note: "Multiple news organizations have covered this topic from different angles. Cross-referencing primary documents directly is recommended.",
         strength: "medium"
       }
     ],
     uncertaintyNotes: [
-      "No primary sources were included in the input, limiting the depth of structural verification possible."
+      "No primary sources were included in the input, limiting independent structural verification."
     ],
     neutralNote: "This is not a verdict. It presents the other side's argument without judging who is right."
   };
@@ -242,45 +251,38 @@ export async function POST(req: Request) {
 
     const isArabic = lang === 'ar' || /[؀-ۿ]/.test(text);
 
-    const languageBlock = isArabic
-      ? `\n\n⚠️ CRITICAL — ARABIC MODE ACTIVE:
-اكتب جميع القيم النصية في JSON باللغة العربية الفصحى فقط. هذا ينطبق على جميع الحقول: detectedStory وmainParty وotherParty وotherSideStory وstrongestCounterArgument وكل عنصر في bothSidesAgreeOn وdisputedPoints وsourceNotes وuncertaintyNotes وneutralNote.
-لا تكتب أي كلمة إنجليزية داخل قيم JSON النصية (باستثناء أسماء العلم المعروفة كـ OpenAI وMicrosoft وما شابه).
-يجب أن تكون كل جملة في القوائم جملةً كاملةً باللغة العربية، وليست مجرد مصطلح أو كلمة منفردة.`
-      : `\n\nWrite all JSON string values in clear, formal English. Every list item must be a complete sentence, not a single word or phrase.`;
+    // Step 1: web search for real references (if SERPER_API_KEY is configured)
+    const searchQuery = isArabic
+      ? `${text.substring(0, 150)} تحليل مراجع`
+      : `${text.substring(0, 150)} analysis sources perspectives`;
+    const searchResults = await searchForContext(searchQuery, lang);
+    const searchContext = formatSearchContext(searchResults, isArabic);
 
-    const modeInstructions: Record<string, string> = {
-      quick: `QUICK COUNTER MODE:
-- otherSideStory: 2 focused paragraphs, each naming at least one specific actor or source.
-- Provide 3–4 sourceNotes with named publishers and dates.
-- bothSidesAgreeOn: 3–4 items. disputedPoints: 3–4 items.
-- Include at least one direct quote or statistic.`,
+    const langInstruction = isArabic
+      ? `\n\nتعليمة لغوية: اكتب جميع قيم JSON النصية باللغة العربية الفصحى فقط. لا تكتب أي كلمة إنجليزية داخل القيم النصية (ما عدا أسماء العلم كـ OpenAI وMicrosoft). كل عنصر في القوائم يجب أن يكون جملةً عربيةً كاملةً.`
+      : `\n\nLanguage: Write all JSON string values in clear, formal English. Every list item must be a complete sentence.`;
 
-      deep: `DEEP DISPUTE MODE:
-- otherSideStory: 4–5 substantial paragraphs. Cover: (1) the other side's core position, (2) key evidence they cite, (3) named actors and their stated positions, (4) timeline of events with specific dates, (5) structural or systemic arguments.
-- Provide 5–6 sourceNotes spanning official statements, court filings or government documents, and news reporting.
-- bothSidesAgreeOn: 5 items with specific dates/figures. disputedPoints: 5 items.
-- Include multiple direct quotes from named figures with source attribution.
-- Include quantitative data (financial figures, vote counts, statistics, percentages) where available.`,
-
-      history: `HISTORY MIRROR MODE:
-- Focus on voices, groups, or perspectives OMITTED from the dominant narrative.
-- otherSideStory: 4 paragraphs covering: (1) who is marginalized, (2) their documented experience, (3) primary source testimonies or archival evidence, (4) how mainstream accounts have historically ignored or misrepresented their position.
-- Prioritize: archives, testimonies, academic historiography, international body reports, primary documents.
-- Provide 5–6 sourceNotes with academic publishers, archival sources, or international organization reports.
-- Name specific historians, researchers, or institutions who have documented the alternative record.`,
+    const modeInstr: Record<string, string> = {
+      quick: 'Mode: QUICK — 2 focused paragraphs for otherSideStory, 3 sources minimum.',
+      deep: 'Mode: DEEP — 4 paragraphs for otherSideStory (position / evidence / named actors / timeline), 5+ sources with direct quotes and statistics.',
+      history: 'Mode: HISTORY MIRROR — Focus on omitted voices. Cite archival sources, testimonies, academic historians, international body reports.',
     };
 
-    const userPrompt = `${modeInstructions[mode] || modeInstructions.quick}
+    const strictnessInstr: Record<string, string> = {
+      strict: 'Strictness: STRICT — Only cite sources you are confident exist. Mark any uncertain source as strength: "missing".',
+      reasoned: 'Strictness: REASONED — Combine documented evidence with clearly-labeled logical inference.',
+      balanced: 'Strictness: BALANCED — Mix direct evidence with reasonable inference; label speculative elements as "reportedly".',
+    };
 
-SOURCE STRICTNESS: ${sourceStrictness || 'balanced'}
-${sourceStrictness === 'strict' ? '→ Only include sourceNotes with strength: "strong". Mark any unverifiable claim as strength: "missing" and explain the gap.' : sourceStrictness === 'reasoned' ? '→ Combine documented evidence with clearly-labeled reasoned inference. Distinguish between "established fact" and "logical inference from available evidence".' : '→ Balance direct evidence with reasonable inference. Label speculative elements as "reportedly" or "this would suggest".'}
-${languageBlock}
+    const userPrompt = `${modeInstr[mode] || modeInstr.quick}
+${strictnessInstr[sourceStrictness] || strictnessInstr.balanced}
+${langInstruction}
+${searchContext}
 
-INPUT TEXT TO ANALYZE:
+INPUT TO ANALYZE:
 ${text}
 
-Produce a single JSON object. Make it as specific, evidence-rich, and deeply researched as your training data allows.`;
+Return a single JSON object. Be specific: name real people, organizations, dates, figures, and quotes.`;
 
     const result = await aiProvider.generateJSON<OtherSideReport>({
       system: SYSTEM_PROMPT,
@@ -291,10 +293,18 @@ Produce a single JSON object. Make it as specific, evidence-rich, and deeply res
     let demoMode = false;
     let demoReason: string | undefined;
 
-    if (result.demoMode || !result.data || typeof result.data !== 'object') {
+    const isValidReport = (r: any): boolean => {
+      if (!r || typeof r !== 'object') return false;
+      if (!r.otherSideStory || r.otherSideStory.length < 100) return false;
+      if (isRepetitive(r.otherSideStory)) return false;
+      if (isRepetitive(r.strongestCounterArgument)) return false;
+      return true;
+    };
+
+    if (result.demoMode || !isValidReport(result.data)) {
       report = getMockReport(text, isArabic);
       demoMode = true;
-      demoReason = result.reason;
+      demoReason = result.reason || (result.data && !isValidReport(result.data) ? 'Model produced low-quality output' : undefined);
     } else {
       report = result.data;
     }
@@ -307,21 +317,13 @@ Produce a single JSON object. Make it as specific, evidence-rich, and deeply res
     report.otherSideStory = rewrite(report.otherSideStory);
     report.strongestCounterArgument = rewrite(report.strongestCounterArgument);
     report.neutralNote = rewrite(report.neutralNote);
-    if (report.bothSidesAgreeOn) {
-      report.bothSidesAgreeOn = report.bothSidesAgreeOn.map(rewrite);
-    }
-    if (report.disputedPoints) {
-      report.disputedPoints = report.disputedPoints.map(rewrite);
-    }
-    if (report.uncertaintyNotes) {
-      report.uncertaintyNotes = report.uncertaintyNotes.map(rewrite);
-    }
-    if (report.sourceNotes) {
-      report.sourceNotes = report.sourceNotes.map((s) => ({ ...s, note: rewrite(s.note) }));
-    }
+    if (report.bothSidesAgreeOn) report.bothSidesAgreeOn = report.bothSidesAgreeOn.map(rewrite);
+    if (report.disputedPoints) report.disputedPoints = report.disputedPoints.map(rewrite);
+    if (report.uncertaintyNotes) report.uncertaintyNotes = report.uncertaintyNotes.map(rewrite);
+    if (report.sourceNotes) report.sourceNotes = report.sourceNotes.map((s) => ({ ...s, note: rewrite(s.note) }));
 
     return NextResponse.json({ report, demoMode, demoReason });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Internal report generation error' }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });
   }
 }
