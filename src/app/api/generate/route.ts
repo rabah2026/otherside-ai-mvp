@@ -291,15 +291,19 @@ function getMockReport(text: string, isArabic: boolean): OtherSideReport {
 }
 
 export async function POST(req: Request) {
+  let _step = 'parse';
   try {
     const { text, mode, sourceStrictness, lang } = await req.json();
     if (!text) {
       return NextResponse.json({ error: 'Text input is required' }, { status: 400 });
     }
 
+    _step = 'detect';
     const isArabic = lang === 'ar' || /[؀-ۿ]/.test(text);
     const footballGoat = isFootballGoatClaim(text);
+    console.log('[generate] step=detect', { isArabic, mode, lang, textLen: text.length });
 
+    _step = 'search';
     const searchQuery = footballGoat
       ? (isArabic
         ? 'ليونيل ميسي بيليه مارادونا كريستيانو رونالدو الأفضل في التاريخ كأس العالم الكرة الذهبية دوري أبطال أوروبا'
@@ -316,7 +320,9 @@ export async function POST(req: Request) {
       arabicQuery: searchQuery,
     });
     const searchContext = formatEvidenceContext(evidence, isArabic);
+    console.log('[generate] step=search done', { official: evidence.officialEnglish.length, arabic: evidence.arabicContext.length });
 
+    _step = 'build_prompt';
     const subjectiveGuidance = footballGoat
       ? (isArabic
         ? '\n\nإرشاد خاص: هذا ادعاء تفضيلي عن الأفضل في التاريخ. لا تقل إن ميسي هو الأفضل ولا إن غيره هو الأفضل. اعرض الطرف المقابل عبر معايير مقارنة واضحة: بيليه، مارادونا، كريستيانو رونالدو، الأثر التاريخي، كأس العالم، الاستمرارية، الجوائز، ودوري الأبطال.'
@@ -354,6 +360,8 @@ ${text}
 
 Return one JSON object only.`;
 
+    _step = 'ai_call';
+    console.log('[generate] step=ai_call start');
     // Budget under Vercel's 60s cap: search (~10s) + first call (22s) +
     // retry (18s) leaves headroom for parsing and the neutrality pass.
     const firstResult = await aiProvider.generateJSON<OtherSideReport>({
@@ -445,6 +453,8 @@ Return valid JSON only using the required schema.`;
 
     return NextResponse.json({ report, demoMode, demoReason });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Internal error' }, { status: 500 });
+    const msg = err?.message || String(err) || 'Internal error';
+    console.error('[generate] ERROR at step=' + (_step as string) + ':', msg, err?.stack?.slice(0, 600));
+    return NextResponse.json({ error: msg, step: _step }, { status: 500 });
   }
 }
