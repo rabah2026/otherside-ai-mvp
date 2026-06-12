@@ -10,6 +10,7 @@ export interface SearchResult {
 const OFFICIAL_DOMAIN_PARTS = [
   '.gov',
   '.int',
+  '.edu',
   'fifa.com',
   'uefa.com',
   'olympics.com',
@@ -35,6 +36,30 @@ const OFFICIAL_DOMAIN_PARTS = [
   'spacex.com',
 ];
 
+// Reputable news agencies — used as a second evidence tier when no primary
+// official source is found, so non-sports/tech topics still get real citations.
+const REPUTABLE_NEWS_PARTS = [
+  'reuters.com',
+  'apnews.com',
+  'bbc.com',
+  'bbc.co.uk',
+  'nytimes.com',
+  'theguardian.com',
+  'aljazeera.com',
+  'aljazeera.net',
+  'ft.com',
+  'washingtonpost.com',
+  'wsj.com',
+  'bloomberg.com',
+  'economist.com',
+  'npr.org',
+  'cnbc.com',
+  'forbes.com',
+  'time.com',
+  'nature.com',
+  'sciencemag.org',
+];
+
 const ARABIC_CONTEXT_TERMS = [
   'السعودية', 'الرياض', 'جدة', 'مكة', 'الإمارات', 'دبي', 'قطر', 'الكويت',
   'مصر', 'القاهرة', 'السودان', 'الخرطوم', 'اليمن', 'العراق', 'الأردن',
@@ -50,10 +75,24 @@ function hostname(url: string): string {
   }
 }
 
+// Safe host matching: a TLD-style part (".gov") matches only as a suffix; a
+// full-domain part ("fifa.com") matches the domain itself or a subdomain of it.
+// This rejects spoofs like "abc.gov.evil.com" that a naive includes() accepts.
+function hostMatchesPart(host: string, part: string): boolean {
+  if (part.startsWith('.')) return host.endsWith(part);
+  return host === part || host.endsWith('.' + part);
+}
+
 function isOfficialEnglishEvidence(url: string): boolean {
   const host = hostname(url);
   if (!host) return false;
-  return OFFICIAL_DOMAIN_PARTS.some((part) => host === part || host.endsWith(part) || host.includes(part));
+  return OFFICIAL_DOMAIN_PARTS.some((part) => hostMatchesPart(host, part));
+}
+
+function isReputableNews(url: string): boolean {
+  const host = hostname(url);
+  if (!host) return false;
+  return REPUTABLE_NEWS_PARTS.some((part) => hostMatchesPart(host, part));
 }
 
 export function hasArabicContext(text: string): boolean {
@@ -108,8 +147,15 @@ export async function searchEvidenceForReport(input: {
   arabicQuery?: string;
 }): Promise<{ officialEnglish: SearchResult[]; arabicContext: SearchResult[]; all: SearchResult[] }> {
   const englishResults = await serperSearch(input.englishQuery, 'en', 10);
-  const officialEnglish = englishResults
-    .filter((result) => isOfficialEnglishEvidence(result.url))
+
+  // Tier 1: primary/official domains. Tier 2: reputable news agencies.
+  // Tier 3: top general results — so every topic gets some real citation
+  // instead of being told "no evidence found".
+  const primary = englishResults.filter((r) => isOfficialEnglishEvidence(r.url));
+  const news = englishResults.filter((r) => !isOfficialEnglishEvidence(r.url) && isReputableNews(r.url));
+  const general = englishResults.filter((r) => !isOfficialEnglishEvidence(r.url) && !isReputableNews(r.url));
+
+  const officialEnglish = uniqueByUrl([...primary, ...news, ...general.slice(0, 3)])
     .slice(0, 6)
     .map((result) => ({ ...result, evidenceTier: 'official_english' as const }));
 
@@ -125,6 +171,27 @@ export async function searchEvidenceForReport(input: {
     arabicContext: uniqueByUrl(arabicContext),
     all: uniqueByUrl([...officialEnglish, ...arabicContext]),
   };
+}
+
+// Normalize a URL for comparison (strip trailing slash, lowercase host).
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return (u.hostname.replace(/^www\./, '').toLowerCase() + u.pathname.replace(/\/$/, '')).toLowerCase();
+  } catch {
+    return (url || '').trim().toLowerCase();
+  }
+}
+
+// Set of normalized URLs the model was actually shown, so generated
+// sourceNotes can be checked against it and fabricated links removed.
+export function allowedEvidenceUrls(results: SearchResult[]): Set<string> {
+  return new Set(results.filter((r) => r.url).map((r) => normalizeUrl(r.url)));
+}
+
+export function isUrlInEvidence(url: string, allowed: Set<string>): boolean {
+  if (!url) return false;
+  return allowed.has(normalizeUrl(url));
 }
 
 export function formatSearchContext(results: SearchResult[], isArabic: boolean): string {

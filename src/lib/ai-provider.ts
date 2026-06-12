@@ -2,17 +2,18 @@ export interface AIProvider {
   generateJSON<T>(input: {
     system: string;
     prompt: string;
+    timeoutMs?: number;
   }): Promise<{ data: T; demoMode: boolean; reason?: string }>;
 }
 
 export const aiProvider: AIProvider = {
-  async generateJSON<T>({ system, prompt }: { system: string; prompt: string }): Promise<{ data: T; demoMode: boolean; reason?: string }> {
+  async generateJSON<T>({ system, prompt, timeoutMs }: { system: string; prompt: string; timeoutMs?: number }): Promise<{ data: T; demoMode: boolean; reason?: string }> {
     const apiBase = (process.env.AI_API_BASE_URL || 'http://localhost:1234/v1').replace(/\/$/, '');
     const apiKey = process.env.OPENAI_API_KEY || 'no-key-required';
     const model = process.env.AI_MODEL || 'google/gemma-4-12b';
 
     const isLocalhost = apiBase.includes('localhost') || apiBase.includes('127.0.0.1');
-    const timeoutDuration = isLocalhost ? 1500 : 25000;
+    const timeoutDuration = isLocalhost ? 1500 : (timeoutMs ?? 25000);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);

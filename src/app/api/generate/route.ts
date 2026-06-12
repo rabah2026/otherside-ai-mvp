@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { aiProvider } from '@/lib/ai-provider';
 import { softRewriteNeutrality, cleanArabicLeakage } from '@/lib/neutrality-guard';
-import { searchEvidenceForReport, formatEvidenceContext, isRepetitive } from '@/lib/web-search';
+import { searchEvidenceForReport, formatEvidenceContext, isRepetitive, allowedEvidenceUrls, isUrlInEvidence } from '@/lib/web-search';
 import { OPENAI_REPORT_EN, OPENAI_REPORT_AR } from '@/lib/example-reports';
 import { OtherSideReport } from '@/types';
 
@@ -18,7 +18,16 @@ function isFootballGoatClaim(text: string): boolean {
 }
 
 function hasConversationalLeakage(text: string): boolean {
-  return /(أعطيك|اعطيك|لو أعطيتك|بتحطلي|هالاند|بس أربعة|sonder|sondern|\?\s*$)/i.test(text || '');
+  // Catches colloquial / chatbot-style replies. Avoid matching legitimate
+  // proper nouns (e.g. player names) so real reports are not falsely rejected.
+  return /(أعطيك|اعطيك|لو أعطيتك|بتحطلي|sonder|sondern)/i.test(text || '');
+}
+
+// Subjective "greatest/best ever" claims in any domain (sports, science,
+// art…) — used to steer the model toward criteria-based comparison rather
+// than picking a winner.
+function isSubjectiveSuperlative(text: string): boolean {
+  return /(الأفضل|الأعظم|افضل|اعظم|greatest|best ever|goat|أهم|اهم)/i.test(text || '');
 }
 
 function isValidReport(r: any, isArabic: boolean): boolean {
@@ -41,7 +50,7 @@ function isValidReport(r: any, isArabic: boolean): boolean {
   return true;
 }
 
-export const maxDuration = 25;
+export const maxDuration = 60;
 
 const SYSTEM_PROMPT = `You are OtherSide AI, a neutral counter-perspective engine.
 
@@ -302,6 +311,10 @@ export async function POST(req: Request) {
       ? (isArabic
         ? '\n\nإرشاد خاص: هذا ادعاء تفضيلي عن الأفضل في التاريخ. لا تقل إن ميسي هو الأفضل ولا إن غيره هو الأفضل. اعرض الطرف المقابل عبر معايير مقارنة واضحة: بيليه، مارادونا، كريستيانو رونالدو، الأثر التاريخي، كأس العالم، الاستمرارية، الجوائز، ودوري الأبطال.'
         : '\n\nSpecial guidance: this is a subjective greatest-ever claim. Do not decide the winner. Present the counter-side through criteria: Pelé, Maradona, Cristiano Ronaldo, historical impact, World Cup, longevity, awards, and Champions League record.')
+      : isSubjectiveSuperlative(text)
+      ? (isArabic
+        ? '\n\nإرشاد خاص: هذا ادعاء تفضيلي ذاتي (الأفضل/الأعظم). لا تحسم فائزًا. اعرض الطرف المقابل عبر معايير مقارنة واضحة، ومرشحين بديلين بارزين في المجال، وأدلة قابلة للقياس، والسياق التاريخي، مع التأكيد على أن النتيجة تتغير بتغير المعيار.'
+        : '\n\nSpecial guidance: this is a subjective superlative claim (greatest/best). Do not decide a winner. Present the counter-side through explicit comparison criteria, notable alternative candidates in the field, measurable evidence, and historical context, stressing that the conclusion changes with the chosen criterion.')
       : '';
 
     const langInstruction = isArabic
@@ -331,9 +344,12 @@ ${text}
 
 Return one JSON object only.`;
 
+    // Budget under Vercel's 60s cap: search (~10s) + first call (22s) +
+    // retry (18s) leaves headroom for parsing and the neutrality pass.
     const firstResult = await aiProvider.generateJSON<OtherSideReport>({
       system: SYSTEM_PROMPT,
       prompt: userPrompt,
+      timeoutMs: 22000,
     });
 
     let report: OtherSideReport | null = firstResult.data;
@@ -355,6 +371,7 @@ Return valid JSON only using the required schema.`;
       const retryResult = await aiProvider.generateJSON<OtherSideReport>({
         system: SYSTEM_PROMPT,
         prompt: retryPrompt,
+        timeoutMs: 18000,
       });
 
       if (!retryResult.demoMode && isValidReport(retryResult.data, true)) {
@@ -373,6 +390,18 @@ Return valid JSON only using the required schema.`;
         || (firstResult.data && isArabic && arabicRatio(firstResult.data.otherSideStory) < 0.5
           ? 'Model replied in English for an Arabic request'
           : firstResult.data ? 'Model produced low-quality output' : undefined);
+    } else if (evidence.all.length > 0 && report.sourceNotes) {
+      // The model passed the quality gate AND we supplied real search
+      // evidence. Guard against fabricated links: any sourceNote URL not
+      // present in that evidence is dropped and downgraded to "missing".
+      // (Skipped when search is disabled, since then citations legitimately
+      // come from the model's training data and we have nothing to verify against.)
+      const allowed = allowedEvidenceUrls(evidence.all);
+      report.sourceNotes = report.sourceNotes.map((s) =>
+        s.url && !isUrlInEvidence(s.url, allowed)
+          ? { ...s, url: undefined, strength: 'missing' as const }
+          : s
+      );
     }
 
     const rewrite = (s: string) => softRewriteNeutrality(isArabic ? cleanArabicLeakage(s) : s);
