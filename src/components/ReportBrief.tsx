@@ -60,7 +60,7 @@ function Section({
   );
 }
 
-export default function ReportBrief({ report }: Props) {
+export default function ReportBrief({ report, demoMode, demoReason }: Props) {
   const { t, lang } = useConfig();
   const briefRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
@@ -152,6 +152,24 @@ export default function ReportBrief({ report }: Props) {
         ref={briefRef}
         className="rounded-2xl border border-neutral-200 dark:border-neutral-800/60 bg-white dark:bg-[#0d0d14] overflow-hidden"
       >
+        {/* Demo mode banner */}
+        {demoMode && (
+          <div className="px-5 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/40 flex items-start gap-2">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
+              <span className="font-semibold">{lang === 'ar' ? 'نموذج تجريبي — ' : 'Demo Mode — '}</span>
+              {lang === 'ar'
+                ? 'لم يتمكن النظام من الاتصال بالذكاء الاصطناعي. تأكد من إعداد متغيرات البيئة في Vercel.'
+                : 'Could not reach the AI. Check that environment variables are set in Vercel.'}
+              {demoReason && (
+                <span className="block mt-0.5 text-amber-500 dark:text-amber-600 font-mono text-[10px] truncate" title={demoReason}>
+                  {demoReason}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Card header */}
         <div className="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800/60 flex items-start justify-between gap-4">
           <div className="space-y-1.5">
