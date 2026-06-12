@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { aiProvider } from '@/lib/ai-provider';
 import { softRewriteNeutrality, cleanArabicLeakage } from '@/lib/neutrality-guard';
-import { searchForContext, formatSearchContext, isRepetitive } from '@/lib/web-search';
+import { searchEvidenceForReport, formatEvidenceContext, isRepetitive } from '@/lib/web-search';
 import { OPENAI_REPORT_EN, OPENAI_REPORT_AR } from '@/lib/example-reports';
 import { OtherSideReport } from '@/types';
 
@@ -288,8 +288,15 @@ export async function POST(req: Request) {
       : (isArabic
         ? `${text.substring(0, 150)} تحليل مراجع`
         : `${text.substring(0, 150)} analysis sources perspectives`);
-    const searchResults = await searchForContext(searchQuery, lang);
-    const searchContext = formatSearchContext(searchResults, isArabic);
+    const evidence = await searchEvidenceForReport({
+      text,
+      isArabic,
+      englishQuery: footballGoat
+        ? 'Lionel Messi Pele Maradona Cristiano Ronaldo FIFA UEFA official records World Cup Champions League'
+        : `${text.substring(0, 150)} official English source evidence`,
+      arabicQuery: searchQuery,
+    });
+    const searchContext = formatEvidenceContext(evidence, isArabic);
 
     const subjectiveGuidance = footballGoat
       ? (isArabic
@@ -298,8 +305,8 @@ export async function POST(req: Request) {
       : '';
 
     const langInstruction = isArabic
-      ? `\n\nArabic language rule: keep the JSON keys in English, but write every text value in formal Arabic only. Foreign source names, brand names, and URLs may remain in their original spelling. Summarize foreign sources in Arabic.`
-      : `\n\nLanguage: Write all JSON string values in clear, formal English. Every list item must be a complete sentence.`;
+      ? `\n\nArabic language rule: keep the JSON keys in English, but write every text value in formal Arabic only. Use EN-OFFICIAL English sources as the factual base, then translate and synthesize the evidence properly into Arabic. Foreign source names, brand names, and URLs may remain in their original spelling. Use AR-CONTEXT sources only as supplemental Arabic/local context.`
+      : `\n\nLanguage: Write all JSON string values in clear, formal English. Every list item must be a complete sentence. Use EN-OFFICIAL sources as the factual base.`;
 
     const modeInstr: Record<string, string> = {
       quick: isArabic ? 'Mode: QUICK. Write at least 3 focused Arabic paragraphs in otherSideStory and include at least 2 source notes.' : 'Mode: QUICK. Write at least 3 focused paragraphs and include at least 2 source notes.',
@@ -336,8 +343,9 @@ Return one JSON object only.`;
     if (isArabic && !firstResult.demoMode && !isValidReport(report, true)) {
       const retryPrompt = `${langInstruction}
 ${subjectiveGuidance}
+${searchContext}
 
-The previous result was too short, casual, or unsuitable for an Arabic report. Regenerate it from the original text. Keep JSON keys exactly as required. Write all user-facing values in formal Arabic. Produce at least 3 paragraphs in otherSideStory, at least 2 source notes, and no conversational phrases.
+The previous result was too short, casual, or unsuitable for an Arabic report. Regenerate it from the original text. Keep JSON keys exactly as required. Write all user-facing values in formal Arabic. Use EN-OFFICIAL evidence as the factual base. Produce at least 3 paragraphs in otherSideStory, at least 2 source notes, and no conversational phrases.
 
 Original text:
 ${text}
