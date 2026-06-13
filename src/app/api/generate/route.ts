@@ -392,7 +392,9 @@ Return one JSON object only.`;
 
     if (!demoMode && failReason) {
       _step = 'retry';
-      const retryPrompt = `${langInstruction}
+      const retryPrompt = `${modeInstr[mode] || modeInstr.quick}
+${strictnessInstr[sourceStrictness] || strictnessInstr.balanced}
+${langInstruction}
 ${dateContext}
 ${subjectiveGuidance}
 ${searchContext}
