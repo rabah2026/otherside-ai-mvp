@@ -77,11 +77,11 @@ function isValidReport(r: any, isArabic: boolean): { ok: boolean; reason: string
   // a copy of story sentences; list items must not be near-copies of each
   // other across the agree/disputed sections.
   const counterOverlap = trigramContainment(counter, story);
-  if (counterOverlap > 0.55)
+  if (counterOverlap > 0.75)
     return { ok: false, reason: `counter_duplicates_story:${counterOverlap.toFixed(2)}` };
   for (const agree of r.bothSidesAgreeOn as unknown[]) {
     for (const disputed of r.disputedPoints as unknown[]) {
-      if (trigramContainment(String(disputed || ''), String(agree || '')) > 0.7)
+      if (trigramContainment(String(disputed || ''), String(agree || '')) > 0.85)
         return { ok: false, reason: 'agree_disputed_near_duplicate' };
     }
   }
@@ -418,16 +418,26 @@ Return one JSON object only.`;
       '| arabic_ratio:', report?.otherSideStory ? arabicRatio(String(report.otherSideStory)).toFixed(2) : 'n/a');
 
     if (isArabic && !firstResult.demoMode && !firstCheck.ok) {
+      const retryGuidance = firstCheck.reason.startsWith('excessive_questions')
+        ? 'Critical fix needed: your previous response used rhetorical questions. Replace EVERY question with a declarative sentence that states a fact, a named actor, or a documented finding.'
+        : firstCheck.reason.startsWith('counter_duplicates')
+        ? 'Critical fix needed: strongestCounterArgument must introduce a NEW specific fact not already in otherSideStory. Do not repeat or rephrase sentences from the story.'
+        : firstCheck.reason.startsWith('arabic_ratio')
+        ? 'Critical fix needed: write ALL values in formal Arabic script only. Do not mix languages.'
+        : firstCheck.reason.startsWith('story_short')
+        ? 'Critical fix needed: otherSideStory is too short. Write at least 3 full paragraphs with concrete named facts, actors, and documented events.'
+        : `Critical fix needed: the previous result failed quality check (${firstCheck.reason}). Regenerate carefully.`;
+
       const retryPrompt = `${langInstruction}
 ${subjectiveGuidance}
 ${searchContext}
 
-The previous result had an issue: ${firstCheck.reason}. Regenerate from the original text. Keep JSON keys exactly as required. Write all user-facing values in formal Arabic. Produce substantive paragraphs in otherSideStory, at least 1 source note, and no conversational phrases.
+${retryGuidance}
 
-Original text:
+Original text to analyze:
 ${text}
 
-Return valid JSON only using the required schema.`;
+Return valid JSON only using the required schema. Write all values in formal Arabic.`;
 
       const retryResult = await aiProvider.generateJSON<OtherSideReport>({
         system: SYSTEM_PROMPT,

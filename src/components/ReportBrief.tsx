@@ -172,15 +172,21 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
           <div className="px-5 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/40 flex items-start gap-2">
             <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
-              <span className="font-semibold">{lang === 'ar' ? 'نموذج تجريبي — ' : 'Demo Mode — '}</span>
-              {lang === 'ar'
-                ? 'لم يتمكن النظام من الاتصال بالذكاء الاصطناعي. تأكد من إعداد متغيرات البيئة في Vercel.'
-                : 'Could not reach the AI. Check that environment variables are set in Vercel.'}
-              {demoReason && (
-                <span className="block mt-0.5 text-amber-500 dark:text-amber-600 font-mono text-[10px] truncate" title={demoReason}>
-                  {demoReason}
-                </span>
-              )}
+              <span className="font-semibold">{lang === 'ar' ? 'عرض توضيحي — ' : 'Demo Mode — '}</span>
+              {(() => {
+                const r = demoReason || '';
+                const isQualityFailure = /retry failed|story_short|counter_short|repetitive|leakage|arabic_ratio|excessive_questions|overlap|duplicate|not_object|bothSides|disputed|sources_missing/i.test(r);
+                const isConnectivity = /localhost|AI_API|timed out|network|ECONNREFUSED|fetch|504|503|502/i.test(r);
+                if (lang === 'ar') {
+                  if (isQualityFailure) return 'لم يستوفِ الرد المُولَّد معايير الجودة المطلوبة. يُعرض محتوى توضيحي بدلاً منه.';
+                  if (isConnectivity) return 'تعذّر الاتصال بخدمة الذكاء الاصطناعي. تأكد من إعداد متغيرات البيئة في Vercel.';
+                  return 'لم يتمكن النظام من إنتاج تقرير حقيقي. يُعرض محتوى توضيحي.';
+                } else {
+                  if (isQualityFailure) return 'The AI response did not meet quality standards. Showing a sample report instead.';
+                  if (isConnectivity) return 'Could not reach the AI service. Check that environment variables are set in Vercel.';
+                  return 'Could not produce a real report. Showing a sample instead.';
+                }
+              })()}
             </div>
           </div>
         )}
