@@ -265,12 +265,28 @@ function wordTrigrams(text: string): Set<string> {
   return grams;
 }
 
-// Fraction of `a`'s word-trigrams that also appear in `b` — measures how much
-// of one field is recycled text from another (1 = fully contained copy).
+// Fraction of `a`'s word-trigrams that also appear in `b`.
+// For very short texts (fewer than 4 trigrams) falls back to
+// word-bigram overlap so short list items are still compared correctly.
 export function trigramContainment(a: string, b: string): number {
-  const gramsA = wordTrigrams(a);
-  if (gramsA.size < 4) return 0;
-  const gramsB = wordTrigrams(b);
+  const wordsA = (a || '').toLowerCase().split(/\s+/).filter(w => w.length > 1);
+  const wordsB = (b || '').toLowerCase().split(/\s+/).filter(w => w.length > 1);
+  if (wordsA.length < 3 || wordsB.length < 3) return 0;
+
+  // Use bigrams for short texts (< 6 unique trigrams), trigrams otherwise.
+  const useBigrams = wordsA.length < 8;
+  const buildGrams = (words: string[]): Set<string> => {
+    const g = new Set<string>();
+    const step = useBigrams ? 1 : 2;
+    for (let i = 0; i < words.length - step; i++) {
+      g.add(useBigrams ? `${words[i]} ${words[i + 1]}` : `${words[i]} ${words[i + 1]} ${words[i + 2]}`);
+    }
+    return g;
+  };
+
+  const gramsA = buildGrams(wordsA);
+  const gramsB = buildGrams(wordsB);
+  if (gramsA.size === 0) return 0;
   let shared = 0;
   for (const g of gramsA) if (gramsB.has(g)) shared++;
   return shared / gramsA.size;

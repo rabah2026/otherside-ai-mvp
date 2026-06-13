@@ -102,18 +102,25 @@ function isValidReport(r: any, isArabic: boolean, mode = 'quick'): { ok: boolean
     return { ok: false, reason: 'placeholder_leak_source_note' };
 
   // Cross-section recycling: the counter-argument and every list item should
-  // be distinct points, not the same 3-4 sentences shuffled into different
-  // buckets. Collect all atomic items and reject if any two are near-copies.
+  // be distinct points, not the same sentences shuffled into different buckets.
+  // Threshold 0.45: at this overlap two short Arabic sentences are clearly
+  // the same point rephrased. The bigram fallback in trigramContainment ensures
+  // short list items are properly compared.
   const atomicItems = [counter, ...allListItems.map((s) => String(s || ''))].filter((s) => s.length > 15);
   for (let i = 0; i < atomicItems.length; i++) {
     for (let j = i + 1; j < atomicItems.length; j++) {
-      if (trigramContainment(atomicItems[i], atomicItems[j]) > 0.6)
+      if (trigramContainment(atomicItems[i], atomicItems[j]) > 0.45)
         return { ok: false, reason: 'cross_section_duplicate' };
     }
   }
+  // The counter-argument and list items must also not copy from the story.
+  for (const item of atomicItems) {
+    if (trigramContainment(item, story) > 0.7)
+      return { ok: false, reason: 'list_item_duplicates_story' };
+  }
   // The counter-argument must add content beyond the story, not copy it.
   const counterOverlap = trigramContainment(counter, story);
-  if (counterOverlap > 0.75)
+  if (counterOverlap > 0.65)
     return { ok: false, reason: `counter_duplicates_story:${counterOverlap.toFixed(2)}` };
   if (isArabic) {
     const ratio = arabicRatio(story);
@@ -468,8 +475,8 @@ Return one JSON object only.`;
         ? 'Critical fix needed: your previous response used rhetorical questions. Replace EVERY question with a declarative sentence that states a fact, a named actor, or a documented finding.'
         : firstCheck.reason.startsWith('counter_duplicates')
         ? 'Critical fix needed: strongestCounterArgument must introduce a NEW specific fact not already in otherSideStory. Do not repeat or rephrase sentences from the story.'
-        : firstCheck.reason.startsWith('cross_section_duplicate')
-        ? 'Critical fix needed: you reused the same sentences across strongestCounterArgument, bothSidesAgreeOn, disputedPoints, and uncertaintyNotes. Each of these must be a DISTINCT point — no sentence or its paraphrase may appear in more than one place.'
+        : (firstCheck.reason.startsWith('cross_section_duplicate') || firstCheck.reason.startsWith('list_item_duplicates'))
+        ? 'Critical fix needed: you reused the same sentences across strongestCounterArgument, bothSidesAgreeOn, disputedPoints, and uncertaintyNotes. Each section must make a DIFFERENT point — no sentence or paraphrase of it may appear in more than one place in the entire response.'
         : firstCheck.reason.startsWith('placeholder_leak')
         ? 'Critical fix needed: you left literal template text (like "why this source matters" or angle-bracket instructions) in the output. Replace every field with real, specific content in formal Arabic.'
         : firstCheck.reason.startsWith('arabic_ratio')
