@@ -124,6 +124,17 @@ function isBlockedDomain(url: string): boolean {
   return BLOCKED_DOMAIN_PARTS.some((part) => hostMatchesPart(host, part));
 }
 
+// Trustworthy source strength derived from the domain itself, not the model's
+// self-assessment. Official/intergovernmental/academic = strong, reputable
+// news institutions = medium, anything else with a real URL = weak.
+export type SourceStrength = 'strong' | 'medium' | 'weak' | 'missing';
+export function sourceStrengthForUrl(url: string | undefined): SourceStrength {
+  if (!url) return 'missing';
+  if (isOfficialEnglishEvidence(url)) return 'strong';
+  if (isReputableNews(url)) return 'medium';
+  return 'weak';
+}
+
 export function hasArabicContext(text: string): boolean {
   const lower = text.toLowerCase();
   return ARABIC_CONTEXT_TERMS.some((term) => lower.includes(term.toLowerCase()));
@@ -320,15 +331,6 @@ export function formatEvidenceContext(
     : 'Evidence policy (mandatory): base ALL facts, numbers, statistics, titles, and records ONLY on EN-OFFICIAL sources below. Your training-data knowledge of statistics and achievements is forbidden — it may be years out of date. If a number is not in the sources, do not invent it. AR-CONTEXT sources are supplemental context only, not statistical sources.';
 
   return `\n\n### EVIDENCE POLICY\n${policy}\n\n### EN-OFFICIAL SOURCES\n${officialItems || noOfficial}${arabicItems ? `\n\n### AR-CONTEXT SOURCES\n${arabicItems}` : ''}`;
-}
-
-function wordTrigrams(text: string): Set<string> {
-  const words = (text || '').toLowerCase().split(/\s+/).filter(w => w.length > 1);
-  const grams = new Set<string>();
-  for (let i = 0; i < words.length - 2; i++) {
-    grams.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
-  }
-  return grams;
 }
 
 // Fraction of `a`'s word-trigrams that also appear in `b`.

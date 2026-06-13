@@ -1,9 +1,25 @@
 import { NextResponse } from 'next/server';
 import { aiProvider } from '@/lib/ai-provider';
 import { softRewriteNeutrality, cleanArabicLeakage } from '@/lib/neutrality-guard';
-import { searchEvidenceForReport, formatEvidenceContext, isRepetitive, trigramContainment, allowedEvidenceUrls, isUrlInEvidence } from '@/lib/web-search';
+import { searchEvidenceForReport, formatEvidenceContext, isRepetitive, trigramContainment, allowedEvidenceUrls, isUrlInEvidence, sourceStrengthForUrl } from '@/lib/web-search';
 import { checkRateLimit, getCached, setCached, cacheKey, clientKey } from '@/lib/rate-limit';
+import { judgeReport } from '@/lib/report-judge';
 import { OtherSideReport } from '@/types';
+
+// Conservative input-safety guard. Refuses inputs that are requests for
+// genuinely harmful content (weapon/explosive construction, violence against a
+// person, sexual content involving minors) rather than a claim to analyze.
+// Deliberately narrow to avoid false positives on legitimate political/dispute
+// topics. A production deployment should add a dedicated moderation API.
+function isUnsafeInput(text: string): boolean {
+  const t = text.toLowerCase();
+  const patterns: RegExp[] = [
+    /(how to|step by step|كيف(ية)?|طريقة).{0,30}(make|build|construct|صنع|تصنيع|تحضير).{0,20}(bomb|explosive|weapon|قنبلة|متفجر|سلاح|عبوة)/,
+    /(how to|كيف(ية)?|طريقة).{0,20}(kill|murder|assassinate|poison|قتل|اغتيال|تسميم).{0,20}(person|someone|him|her|شخص|فلان)/,
+    /(child|minor|طفل|قاصر|أطفال).{0,20}(sexual|porn|nude|جنس|إباحي|عاري)/,
+  ];
+  return patterns.some((p) => p.test(t));
+}
 
 function arabicRatio(text: string): number {
   if (!text || typeof text !== 'string') return 0;
@@ -149,6 +165,30 @@ function isValidReport(r: any, isArabic: boolean, mode = 'quick'): { ok: boolean
 
 export const maxDuration = 60;
 
+// Targeted coaching for the single retry, based on what failed (a structural
+// reason from isValidReport, or a "judge:<issue>" string from the LLM judge).
+function retryGuidanceFor(reason: string): string {
+  if (reason.startsWith('judge:'))
+    return `Critical fix needed — an editor rejected your draft for this reason: "${reason.slice(6)}". Rewrite the whole report to fix it: vary sentence openings, make every section a distinct point, keep it neutral and grounded in named facts, and use natural fluent prose with no repetition or broken tokens.`;
+  if (reason.startsWith('excessive_questions'))
+    return 'Critical fix needed: your previous response used rhetorical questions. Replace EVERY question with a declarative sentence that states a fact, a named actor, or a documented finding.';
+  if (reason.startsWith('counter_duplicates'))
+    return 'Critical fix needed: strongestCounterArgument must introduce a NEW specific fact not already in otherSideStory. Do not repeat or rephrase sentences from the story.';
+  if (reason.startsWith('cross_section_duplicate') || reason.startsWith('list_item_duplicates') || reason.startsWith('duplicate_sentence') || reason.startsWith('agree_disputed'))
+    return 'Critical fix needed: you repeated the same sentence in more than one place (e.g. the same sentence appeared twice in otherSideStory, or a disputed point copied the counter-argument). Every sentence in the entire response must be unique — write each paragraph, counter-argument, agreement, and disputed point as a DISTINCT statement with no verbatim or near-verbatim repetition.';
+  if (reason.startsWith('placeholder_leak'))
+    return 'Critical fix needed: you left literal template text (like "why this source matters" or angle-bracket instructions) in the output. Replace every field with real, specific content in the user\'s language.';
+  if (reason.startsWith('bothSides_missing'))
+    return 'Critical fix needed: the bothSidesAgreeOn array is empty or missing. You MUST include at least 2 complete declarative sentences describing what both sides genuinely agree on. Every report must have this field populated.';
+  if (reason.startsWith('disputed_missing'))
+    return 'Critical fix needed: the disputedPoints array is empty or missing. You MUST include at least 2 complete declarative sentences describing the specific points each side contests. Every report must have this field populated.';
+  if (reason.startsWith('arabic_ratio'))
+    return 'Critical fix needed: write ALL values in formal Arabic script only. Do not mix languages.';
+  if (reason.startsWith('story_short'))
+    return 'Critical fix needed: otherSideStory is too short. Write at least 3 full paragraphs with concrete named facts, actors, and documented events.';
+  return `Critical fix needed: the previous result failed quality check (${reason}). Regenerate carefully.`;
+}
+
 const SYSTEM_PROMPT = `You are OtherSide AI, a neutral counter-perspective engine.
 
 Your role is not to agree, disagree, rank, praise, mock, or choose a winner. Your role is to reconstruct the strongest fair opposing perspective.
@@ -173,6 +213,15 @@ Quality floor:
 - Every sentence in the report must appear exactly once. Never reuse a sentence or its rephrased copy across otherSideStory, strongestCounterArgument, bothSidesAgreeOn, or disputedPoints.
 - bothSidesAgreeOn and disputedPoints must each contain at least 2 complete declarative sentences with different content.
 - sourceNotes must contain at least 2 source notes. Use strength "missing" only when no source is available. Mark strength "strong" only for government, intergovernmental, academic, or major news institutions; commercial sites and blogs are at most "weak".
+
+Writing style (write like a sharp human analyst, not a template):
+- VARY your sentence openings. Do not begin consecutive sentences with the same words (e.g. avoid "يقول خبراء أن…" / "Experts say that…" repeated). Each paragraph and list item should start differently.
+- Lead with concrete specifics — a name, a number, an event, a date — not with a generic framing clause.
+- Write in a confident analytical voice. No hedging filler, no garbled or invented tokens, no broken or truncated sentences.
+- Each list item is a complete, self-contained sentence that makes its own distinct point.
+- Example of GOOD vs BAD:
+  BAD (robotic): "يقول خبراء أن الشركة خانت مهمتها. يقول خبراء أن الشركة اقتربت من منافسيها."
+  GOOD (analytical): "تحوّلت الشركة من كيان غير ربحي إلى شراكة تجارية بمليارات الدولارات عام 2019، وهو تحوّل يرى منتقدوه أنه يناقض ميثاقها التأسيسي. ووفق تقارير صحفية، منح هذا التحوّل شريكها التجاري نفوذاً متزايداً على القرارات التقنية."
 
 IMPORTANT: The schema below shows REQUIRED KEYS with angle-bracket INSTRUCTIONS describing what to write. Never copy the instruction text literally. Replace every <...> with real content in the user's language. A response that contains any literal placeholder text like "why this source matters" or "complete sentence" will be rejected.
 
@@ -218,6 +267,10 @@ export async function POST(req: Request) {
     }
     if (text.length > 5000) {
       return NextResponse.json({ error: 'Input too long (max 5000 characters)' }, { status: 400 });
+    }
+    if (isUnsafeInput(text)) {
+      console.warn('[generate] refused unsafe input');
+      return NextResponse.json({ unavailable: true, kind: 'unsafe' }, { status: 200 });
     }
 
     // Serve identical queries from cache to save Serper + LLM cost.
@@ -306,70 +359,70 @@ Return one JSON object only.`;
 
     _step = 'ai_call';
     console.log('[generate] step=ai_call start');
-    // Budget under Vercel's 60s cap: search (~10s) + first call (22s) +
-    // retry (18s) leaves headroom for parsing and the neutrality pass.
+    // Latency budget under Vercel's 60s cap: search+fetch (~10s) + draft (20s)
+    // + judge (~9s) + one retry (16s). Judge only runs when the draft passes
+    // the cheap deterministic checks, so the common path is search+draft+judge.
     const firstResult = await aiProvider.generateJSON<OtherSideReport>({
       system: SYSTEM_PROMPT,
       prompt: userPrompt,
-      timeoutMs: 22000,
+      timeoutMs: 20000,
+      temperature: 0.4,
     });
 
-    let report: OtherSideReport | null = firstResult.data;
     let demoMode = Boolean(firstResult.demoMode);
     let demoReason: string | undefined = firstResult.reason;
 
-    const firstCheck = isValidReport(report, isArabic, mode);
-    console.log('[generate] first call demoMode:', firstResult.demoMode, '| validity:', firstCheck.reason,
-      '| story_len:', report?.otherSideStory?.length, '| counter_len:', report?.strongestCounterArgument?.length,
-      '| arabic_ratio:', report?.otherSideStory ? arabicRatio(String(report.otherSideStory)).toFixed(2) : 'n/a');
+    // Best structurally-valid candidate seen so far (draft or retry).
+    let report: OtherSideReport | null = null;
+    const firstCheck = isValidReport(firstResult.data, isArabic, mode);
+    if (!demoMode && firstCheck.ok) report = firstResult.data;
+    console.log('[generate] draft demoMode:', firstResult.demoMode, '| validity:', firstCheck.reason,
+      '| story_len:', firstResult.data?.otherSideStory?.length, '| counter_len:', firstResult.data?.strongestCounterArgument?.length,
+      '| arabic_ratio:', firstResult.data?.otherSideStory ? arabicRatio(String(firstResult.data.otherSideStory)).toFixed(2) : 'n/a');
 
-    if (isArabic && !firstResult.demoMode && !firstCheck.ok) {
-      const retryGuidance = firstCheck.reason.startsWith('excessive_questions')
-        ? 'Critical fix needed: your previous response used rhetorical questions. Replace EVERY question with a declarative sentence that states a fact, a named actor, or a documented finding.'
-        : firstCheck.reason.startsWith('counter_duplicates')
-        ? 'Critical fix needed: strongestCounterArgument must introduce a NEW specific fact not already in otherSideStory. Do not repeat or rephrase sentences from the story.'
-        : (firstCheck.reason.startsWith('cross_section_duplicate') || firstCheck.reason.startsWith('list_item_duplicates') || firstCheck.reason.startsWith('duplicate_sentence') || firstCheck.reason.startsWith('agree_disputed'))
-        ? 'Critical fix needed: you repeated the same sentence in more than one place (e.g. the same sentence appeared twice in otherSideStory, or a disputed point copied the counter-argument). Every sentence in the entire response must be unique — write each paragraph, counter-argument, agreement, and disputed point as a DISTINCT statement with no verbatim or near-verbatim repetition.'
-        : firstCheck.reason.startsWith('placeholder_leak')
-        ? 'Critical fix needed: you left literal template text (like "why this source matters" or angle-bracket instructions) in the output. Replace every field with real, specific content in formal Arabic.'
-        : firstCheck.reason.startsWith('bothSides_missing')
-        ? 'Critical fix needed: the bothSidesAgreeOn array is empty or missing. You MUST include at least 2 complete declarative sentences describing what both sides of the argument genuinely agree on (facts, common ground, shared context). Every report must have this field populated.'
-        : firstCheck.reason.startsWith('disputed_missing')
-        ? 'Critical fix needed: the disputedPoints array is empty or missing. You MUST include at least 2 complete declarative sentences describing the specific points each side contests. Every report must have this field populated.'
-        : firstCheck.reason.startsWith('arabic_ratio')
-        ? 'Critical fix needed: write ALL values in formal Arabic script only. Do not mix languages.'
-        : firstCheck.reason.startsWith('story_short')
-        ? 'Critical fix needed: otherSideStory is too short. Write at least 3 full paragraphs with concrete named facts, actors, and documented events.'
-        : `Critical fix needed: the previous result failed quality check (${firstCheck.reason}). Regenerate carefully.`;
+    // Decide whether a retry is needed: structural failure OR (structurally ok
+    // but the qualitative LLM judge rejects it). Judge fails open.
+    let failReason = firstCheck.ok ? '' : firstCheck.reason;
+    if (!demoMode && firstCheck.ok) {
+      _step = 'judge';
+      const verdict = await judgeReport(firstResult.data, text, isArabic);
+      console.log('[generate] judge pass:', verdict.pass, '| issue:', verdict.worstIssue);
+      if (!verdict.pass) failReason = `judge:${verdict.worstIssue}`;
+    }
 
+    if (!demoMode && failReason) {
+      _step = 'retry';
       const retryPrompt = `${langInstruction}
 ${dateContext}
 ${subjectiveGuidance}
 ${searchContext}
 
-${retryGuidance}
+${retryGuidanceFor(failReason)}
 
 Original text to analyze:
 ${text}
 
-Return valid JSON only using the required schema. Write all values in formal Arabic.`;
+Return valid JSON only using the required schema.${isArabic ? ' Write all values in formal Arabic.' : ''}`;
 
       const retryResult = await aiProvider.generateJSON<OtherSideReport>({
         system: SYSTEM_PROMPT,
         prompt: retryPrompt,
-        timeoutMs: 18000,
+        timeoutMs: 16000,
+        temperature: 0.4,
       });
 
-      const retryCheck = isValidReport(retryResult.data, true, mode);
+      const retryCheck = isValidReport(retryResult.data, isArabic, mode);
       console.log('[generate] retry demoMode:', retryResult.demoMode, '| validity:', retryCheck.reason,
         '| story_len:', retryResult.data?.otherSideStory?.length);
 
       if (!retryResult.demoMode && retryCheck.ok) {
-        report = retryResult.data;
+        report = retryResult.data; // prefer the retry when it is valid
         demoMode = false;
         demoReason = undefined;
-      } else {
-        demoReason = retryResult.reason || `Arabic retry failed: ${retryCheck.reason}`;
+      } else if (!report) {
+        // Neither draft nor retry produced a structurally valid report.
+        demoMode = demoMode || Boolean(retryResult.demoMode);
+        demoReason = retryResult.reason || demoReason || failReason;
       }
     }
 
@@ -386,16 +439,25 @@ Return valid JSON only using the required schema. Write all values in formal Ara
     }
 
     // The model passed the quality gate AND we supplied real search evidence.
-    // Guard against fabricated links: any sourceNote URL not present in that
-    // evidence is dropped and downgraded to "missing". (Skipped when search is
-    // disabled, since then citations legitimately come from training data.)
+    // Make source strength TRUSTWORTHY by deriving it from the domain instead
+    // of the model's self-rating, and drop fabricated links. (Skipped when
+    // search is disabled, since then citations come from training data.)
     if (evidence.all.length > 0 && report.sourceNotes) {
       const allowed = allowedEvidenceUrls(evidence.all);
-      report.sourceNotes = report.sourceNotes.map((s) =>
-        s.url && !isUrlInEvidence(s.url, allowed)
-          ? { ...s, url: undefined, strength: 'missing' as const }
-          : s
-      );
+      report.sourceNotes = report.sourceNotes.map((s) => {
+        if (!s.url) {
+          // Unlinkable source — cannot verify the domain, so cap trust at weak.
+          const capped: 'missing' | 'weak' = s.strength === 'missing' ? 'missing' : 'weak';
+          return { ...s, strength: capped };
+        }
+        if (!isUrlInEvidence(s.url, allowed)) {
+          // Link not among the evidence we actually showed the model → likely
+          // fabricated. Drop it and mark missing.
+          return { ...s, url: undefined, strength: 'missing' as const };
+        }
+        // Verified link: strength is the domain tier, not the model's guess.
+        return { ...s, strength: sourceStrengthForUrl(s.url) };
+      });
     }
 
     // Null-safe rewrite: real AI output may omit optional fields.

@@ -61,6 +61,9 @@ export default function AppWorkspace() {
       // Honest failure: the AI could not produce a verified report. We never
       // show fabricated content — surface a clear, non-alarming message.
       if (data.unavailable) {
+        if (data.kind === 'unsafe') {
+          throw new Error(t('safetyRefusal'));
+        }
         throw new Error(
           data.kind === 'connectivity'
             ? (lang === 'ar'
@@ -158,6 +161,9 @@ export default function AppWorkspace() {
               {lang === 'ar' ? 'نتيجة التحليل' : 'Generated Analysis Report'}
             </div>
             <ReportBrief report={report} />
+            <p className="max-w-3xl mx-auto text-[10px] leading-relaxed text-neutral-400 dark:text-neutral-600 text-center px-4">
+              {t('appDisclaimer')}
+            </p>
           </div>
         )}
       </div>

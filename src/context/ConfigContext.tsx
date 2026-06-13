@@ -63,6 +63,8 @@ const translations: Record<Language, Record<string, any>> = {
     caseStudiesTitle: "Case Studies & Examples",
     caseStudiesSubtitle: "Explore how OtherSide AI dissects complex disputes and presents structured, non-judgmental reports.",
     exampleOpenAI: "Example 1: The OpenAI Restructuring Dispute",
+    safetyRefusal: "This request can't be processed. OtherSide AI analyzes claims and disputes — it does not assist with harmful content.",
+    appDisclaimer: "AI-generated analysis. May contain errors — verify the cited sources before relying on it. This is a balanced perspective, not legal, financial, or factual advice, and not an endorsement of any view.",
   },
   ar: {
     title: "الجانب الآخر",
@@ -113,6 +115,8 @@ const translations: Record<Language, Record<string, any>> = {
     caseStudiesTitle: "أمثلة وحالات دراسية",
     caseStudiesSubtitle: "اكتشف كيف يُحلّل «الجانب الآخر» قضايا حقيقية ويقدّم تقارير موضوعيةً ومنظّمة.",
     exampleOpenAI: "مثال: نزاع OpenAI وإيلون ماسك",
+    safetyRefusal: "لا يمكن معالجة هذا الطلب. «الجانب الآخر» أداةٌ لتحليل الادعاءات والنزاعات، ولا تساعد في إنتاج محتوى ضار.",
+    appDisclaimer: "تحليل مُولَّد بالذكاء الاصطناعي وقد يحتوي أخطاء — تحقّق من المصادر المذكورة قبل الاعتماد عليه. هذا عرضٌ متوازن لوجهة النظر المقابلة، وليس استشارةً قانونية أو مالية أو حكمًا على الحقيقة، ولا يُعدّ تأييدًا لأي رأي.",
   }
 };
 

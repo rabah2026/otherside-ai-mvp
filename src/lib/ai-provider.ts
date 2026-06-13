@@ -30,14 +30,18 @@ export interface AIProvider {
     system: string;
     prompt: string;
     timeoutMs?: number;
+    maxTokens?: number;
+    temperature?: number;
   }): Promise<{ data: T; demoMode: boolean; reason?: string }>;
 }
 
 export const aiProvider: AIProvider = {
-  async generateJSON<T>({ system, prompt, timeoutMs }: { system: string; prompt: string; timeoutMs?: number }): Promise<{ data: T; demoMode: boolean; reason?: string }> {
+  async generateJSON<T>({ system, prompt, timeoutMs, maxTokens, temperature }: { system: string; prompt: string; timeoutMs?: number; maxTokens?: number; temperature?: number }): Promise<{ data: T; demoMode: boolean; reason?: string }> {
     const apiBase = (process.env.AI_API_BASE_URL || 'http://localhost:1234/v1').replace(/\/$/, '');
     const apiKey = process.env.OPENAI_API_KEY || 'no-key-required';
     const model = process.env.AI_MODEL || 'google/gemma-4-12b';
+    const tokens = maxTokens ?? 4096;
+    const temp = temperature ?? 0.1;
 
     const isLocalhost = apiBase.includes('localhost') || apiBase.includes('127.0.0.1');
 
@@ -65,8 +69,8 @@ export const aiProvider: AIProvider = {
               { role: 'system', content: system },
               { role: 'user', content: prompt },
             ],
-            temperature: 0.1,
-            max_tokens: 4096,
+            temperature: temp,
+            max_tokens: tokens,
             response_format: { type: 'json_object' },
           }),
         },
@@ -88,8 +92,8 @@ export const aiProvider: AIProvider = {
                   { role: 'system', content: system },
                   { role: 'user', content: prompt },
                 ],
-                temperature: 0.1,
-                max_tokens: 4096,
+                temperature: temp,
+                max_tokens: tokens,
               }),
             },
             duration
