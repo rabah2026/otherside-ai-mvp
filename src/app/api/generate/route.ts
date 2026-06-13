@@ -76,9 +76,9 @@ function isValidReport(r: any, isArabic: boolean, mode = 'quick'): { ok: boolean
     return { ok: false, reason: `story_short:${story.length}<${minStoryLength}` };
   if (counter.length < minCounterLength)
     return { ok: false, reason: `counter_short:${counter.length}<${minCounterLength}` };
-  if (!Array.isArray(r.bothSidesAgreeOn) || r.bothSidesAgreeOn.length < 2)
+  if (!Array.isArray(r.bothSidesAgreeOn) || r.bothSidesAgreeOn.length < 1)
     return { ok: false, reason: `bothSides_missing:${JSON.stringify(r.bothSidesAgreeOn)?.slice(0, 80)}` };
-  if (!Array.isArray(r.disputedPoints) || r.disputedPoints.length < 2)
+  if (!Array.isArray(r.disputedPoints) || r.disputedPoints.length < 1)
     return { ok: false, reason: `disputed_missing:${JSON.stringify(r.disputedPoints)?.slice(0, 80)}` };
   if (!Array.isArray(r.sourceNotes) || r.sourceNotes.length < minSources)
     return { ok: false, reason: `sources_missing:${JSON.stringify(r.sourceNotes)?.slice(0, 80)}` };
@@ -482,6 +482,10 @@ Return one JSON object only.`;
         ? 'Critical fix needed: you reused the same sentences across strongestCounterArgument, bothSidesAgreeOn, disputedPoints, and uncertaintyNotes. Each section must make a DIFFERENT point — no sentence or paraphrase of it may appear in more than one place in the entire response.'
         : firstCheck.reason.startsWith('placeholder_leak')
         ? 'Critical fix needed: you left literal template text (like "why this source matters" or angle-bracket instructions) in the output. Replace every field with real, specific content in formal Arabic.'
+        : firstCheck.reason.startsWith('bothSides_missing')
+        ? 'Critical fix needed: the bothSidesAgreeOn array is empty or missing. You MUST include at least 2 complete declarative sentences describing what both sides of the argument genuinely agree on (facts, common ground, shared context). Every report must have this field populated.'
+        : firstCheck.reason.startsWith('disputed_missing')
+        ? 'Critical fix needed: the disputedPoints array is empty or missing. You MUST include at least 2 complete declarative sentences describing the specific points each side contests. Every report must have this field populated.'
         : firstCheck.reason.startsWith('arabic_ratio')
         ? 'Critical fix needed: write ALL values in formal Arabic script only. Do not mix languages.'
         : firstCheck.reason.startsWith('story_short')
