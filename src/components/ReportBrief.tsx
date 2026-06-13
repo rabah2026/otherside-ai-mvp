@@ -181,7 +181,7 @@ export default function ReportBrief({ report }: Props) {
         {/* Detected narrative — always open */}
         <div className="px-5 py-4 bg-neutral-50 dark:bg-neutral-900/30 border-b border-neutral-100 dark:border-neutral-800/60">
           <div className="text-[10px] uppercase font-bold tracking-widest text-neutral-400 dark:text-neutral-500 mb-2">
-            {lang === 'ar' ? 'النص كما ورد' : 'Detected Narrative'}
+            {lang === 'ar' ? 'النص كما ورد' : 'Original Input'}
           </div>
           <p className="text-sm text-neutral-700 dark:text-neutral-300 leading-relaxed italic mb-3">
             "{report.detectedStory}"

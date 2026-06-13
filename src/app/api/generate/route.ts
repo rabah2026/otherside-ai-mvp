@@ -404,7 +404,9 @@ Return valid JSON only using the required schema. Write all values in formal Ara
       return softRewriteNeutrality(isArabic ? cleanArabicLeakage(s) : s);
     };
 
-    report.detectedStory = rewrite(report.detectedStory);
+    // "Detected Narrative / النص كما ورد" must be the user's exact input,
+    // shown verbatim with no paraphrasing or neutrality rewriting.
+    report.detectedStory = text.trim();
     report.mainParty = rewrite(report.mainParty);
     report.otherParty = rewrite(report.otherParty);
     report.otherSideStory = rewrite(report.otherSideStory);
