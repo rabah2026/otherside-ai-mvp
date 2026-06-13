@@ -101,22 +101,23 @@ function isValidReport(r: any, isArabic: boolean, mode = 'quick'): { ok: boolean
   if (Array.isArray(r.sourceNotes) && r.sourceNotes.some((s: any) => isPlaceholderLeak(s?.note)))
     return { ok: false, reason: 'placeholder_leak_source_note' };
 
-  // Cross-section recycling: the counter-argument and every list item should
-  // be distinct points, not the same sentences shuffled into different buckets.
-  // Threshold 0.45: at this overlap two short Arabic sentences are clearly
-  // the same point rephrased. The bigram fallback in trigramContainment ensures
-  // short list items are properly compared.
+  // Exact sentence overlap between agree and disputed — the same point cannot
+  // be both agreed and contested. Use 70-char prefix: enough to distinguish
+  // different points about the same topic while catching verbatim copies.
+  const normPrefix = (s: unknown) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 70);
+  const agreeSet = new Set((r.bothSidesAgreeOn as unknown[]).map(normPrefix));
+  if ((r.disputedPoints as unknown[]).some((p) => agreeSet.has(normPrefix(p))))
+    return { ok: false, reason: 'agree_disputed_exact_overlap' };
+
+  // Cross-section fuzzy check: list items and counter-argument must not be
+  // near-copies of each other. Threshold 0.70 — at this overlap the same
+  // point is being recycled; below this, topical similarity is normal.
   const atomicItems = [counter, ...allListItems.map((s) => String(s || ''))].filter((s) => s.length > 15);
   for (let i = 0; i < atomicItems.length; i++) {
     for (let j = i + 1; j < atomicItems.length; j++) {
-      if (trigramContainment(atomicItems[i], atomicItems[j]) > 0.45)
+      if (trigramContainment(atomicItems[i], atomicItems[j]) > 0.70)
         return { ok: false, reason: 'cross_section_duplicate' };
     }
-  }
-  // The counter-argument and list items must also not copy from the story.
-  for (const item of atomicItems) {
-    if (trigramContainment(item, story) > 0.7)
-      return { ok: false, reason: 'list_item_duplicates_story' };
   }
   // The counter-argument must add content beyond the story, not copy it.
   const counterOverlap = trigramContainment(counter, story);
