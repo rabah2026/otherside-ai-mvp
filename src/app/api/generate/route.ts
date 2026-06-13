@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { aiProvider } from '@/lib/ai-provider';
 import { softRewriteNeutrality, cleanArabicLeakage } from '@/lib/neutrality-guard';
 import { searchEvidenceForReport, formatEvidenceContext, isRepetitive, trigramContainment, allowedEvidenceUrls, isUrlInEvidence } from '@/lib/web-search';
-import { OPENAI_REPORT_EN, OPENAI_REPORT_AR } from '@/lib/example-reports';
+import { checkRateLimit, getCached, setCached, cacheKey, clientKey } from '@/lib/rate-limit';
 import { OtherSideReport } from '@/types';
 
 function arabicRatio(text: string): number {
@@ -185,197 +185,32 @@ Schema:
   "neutralNote": "<neutral closing disclaimer, in the user's language>"
 }`;
 
-function footballGoatReport(isArabic: boolean): OtherSideReport {
-  if (isArabic) {
-    return {
-      detectedStory: 'يطرح النص ادعاءً بأن ليونيل ميسي هو اللاعب الأفضل في تاريخ كرة القدم.',
-      mainParty: 'مؤيدو اعتبار ميسي اللاعب الأعظم تاريخيًا',
-      otherParty: 'أنصار مرشحين آخرين مثل بيليه ودييغو مارادونا وكريستيانو رونالدو',
-      otherSideStory: 'الرواية المقابلة لا تنكر مكانة ميسي الاستثنائية، لكنها ترفض تحويل لقب «الأفضل في التاريخ» إلى نتيجة محسومة بمعيار واحد. فأنصار بيليه مثلًا يستندون إلى هيمنته في زمن مختلف، وإلى ارتباط اسمه بثلاثة ألقاب لكأس العالم مع البرازيل، وهو إنجاز يصعب مقارنته مباشرة بعصر كرة القدم الحديثة لأن عدد المباريات، شكل البطولات، أساليب التدريب، وقوة الإعلام كانت مختلفة جذريًا. من هذا المنظور، المقارنة العادلة لا تبدأ بالسؤال: من الأكثر مهارة؟ بل بالسؤال: أي لاعب ترك الأثر الأكبر داخل شروط عصره؟\n\nويرى أنصار دييغو مارادونا أن معيار «حمل الفريق» يغيّر النتيجة. حجتهم أن مارادونا قدّم في كأس العالم 1986 نموذجًا نادرًا للاعب غيّر مسار بطولة كبرى تقريبًا بقدرات فردية وقيادة نفسية وفنية، كما أعاد تشكيل مكانة نابولي في كرة القدم الإيطالية في فترة كانت شديدة التنافس. وفق هذه القراءة، التفوق لا يُقاس فقط بالاستمرارية أو عدد الجوائز، بل بقدرة اللاعب على تغيير مصير فريق أقل اكتمالًا في لحظة تاريخية ضاغطة.\n\nأما أنصار كريستيانو رونالدو فيركّزون على معيار مختلف: الاستمرارية التهديفية، التكيف مع أكثر من دوري، الحضور في دوري أبطال أوروبا، والقدرة على المحافظة على مستوى عالٍ لسنوات طويلة في بيئات تكتيكية مختلفة. حجتهم ليست أن ميسي أقل موهبة، بل أن لقب «الأعظم» يمكن أن يُمنح للاعب جمع بين الإنتاج الرقمي، التحول البدني، النجاح في أكثر من منظومة، والتأثير التجاري والجماهيري العالمي. لذلك فالطرف الآخر يقول إن الادعاء يحتاج أولًا إلى تعريف المعيار: المهارة الخالصة، الألقاب، التأثير التاريخي، الاستمرارية، أو الأداء في البطولات الكبرى.',
-      strongestCounterArgument: 'أقوى حجة للطرف المقابل هي أن عبارة «الأفضل في التاريخ» ليست حقيقة قابلة للحسم دون تحديد معيار القياس. إذا كان المعيار هو الذروة الفنية في بطولة واحدة فقد يتقدم مارادونا عند بعض المحللين؛ وإذا كان المعيار هو الأثر العالمي وكأس العالم فقد يدخل بيليه بقوة؛ وإذا كان المعيار هو الاستمرارية التهديفية والتكيف بين الدوريات فقد تكون حجة كريستيانو رونالدو قوية. لذلك لا يعترض الطرف الآخر على عظمة ميسي، بل يعترض على تقديمها كحكم نهائي يتجاوز اختلاف العصور والمعايير.',
-      bothSidesAgreeOn: [
-        'يتفق الطرفان على أن ليونيل ميسي من أعظم لاعبي كرة القدم في العصر الحديث وفي التاريخ عمومًا.',
-        'يتفق الطرفان على أن المقارنة بين أجيال مختلفة في كرة القدم معقدة بسبب تغير البطولات والتكتيك واللياقة وقواعد اللعبة.'
-      ],
-      disputedPoints: [
-        'الخلاف الأساسي هو ما إذا كان الفوز بكأس العالم والجوائز الفردية كافيًا لحسم لقب الأفضل تاريخيًا لصالح ميسي.',
-        'هناك خلاف حول وزن المهارة الفردية مقارنة بالاستمرارية الرقمية والتأثير التاريخي والقدرة على تغيير مصير الفرق.'
-      ],
-      sourceNotes: [
-        {
-          sourceType: 'historical_record',
-          title: 'سجل كأس العالم للاعبين والمنتخبات',
-          publisher: 'FIFA',
-          date: 'تحديثات متعددة',
-          note: 'يفيد في مقارنة إنجازات اللاعبين في كأس العالم، خصوصًا عند مناقشة بيليه ومارادونا وميسي ضمن سياق البطولات الكبرى.',
-          strength: 'strong'
-        },
-        {
-          sourceType: 'reporting',
-          title: 'سجل الكرة الذهبية وتاريخ الفائزين',
-          publisher: 'France Football / Ballon d’Or',
-          date: 'تحديثات سنوية',
-          note: 'يفيد في فهم وزن الجوائز الفردية في حجة ميسي مقارنة بغيره، مع التنبيه إلى أن الجائزة نفسها ليست معيارًا وحيدًا للحسم.',
-          strength: 'medium'
-        },
-        {
-          sourceType: 'historical_record',
-          title: 'سجلات دوري أبطال أوروبا والإحصاءات التهديفية',
-          publisher: 'UEFA',
-          date: 'تحديثات متعددة',
-          note: 'تدعم حجة المقارنة الرقمية والاستمرارية، وهي نقطة يستخدمها أنصار كريستيانو رونالدو كثيرًا في نقاشات الأفضل تاريخيًا.',
-          strength: 'strong'
-        }
-      ],
-      uncertaintyNotes: [
-        'لا يوجد معيار عالمي ملزم يحدد معنى «الأفضل في التاريخ»، لذلك تعتمد النتيجة على وزن كل معيار.',
-        'المقارنة بين العصور تبقى غير مباشرة لأن ظروف التدريب والتحكيم والإعلام وعدد المباريات تغيّرت كثيرًا.'
-      ],
-      neutralNote: 'هذا ليس حكمًا. التقرير يعرض حجة الطرف المقابل دون ترجيح لاعب على آخر.'
-    };
-  }
-
-  return {
-    detectedStory: 'The input claims that Lionel Messi is the greatest football player in history.',
-    mainParty: 'Supporters of Messi as the greatest player ever',
-    otherParty: 'Supporters of other candidates such as Pelé, Diego Maradona, and Cristiano Ronaldo',
-    otherSideStory: 'The opposing view does not deny Messi’s exceptional status. It argues that “greatest ever” cannot be settled without first defining the criteria. Pelé supporters emphasize dominance in a different era and his association with three World Cup-winning Brazil squads, while noting that direct comparison across eras is distorted by changes in training, media, tournament formats, and the global football calendar.\n\nMaradona supporters often shift the criterion toward peak influence and carrying power. They point to the 1986 World Cup and Napoli’s rise as examples of a player changing the competitive fate of teams under intense pressure. In that framing, greatness is not only consistency or awards, but the capacity to alter history with a less complete supporting structure.\n\nCristiano Ronaldo supporters use another benchmark: elite scoring longevity, adaptation across leagues, Champions League production, and sustained performance in different tactical environments. Their point is not necessarily that Messi lacks genius, but that a final judgment depends on whether the evaluator values skill, peak, trophies, longevity, portability, or historical influence most.',
-    strongestCounterArgument: 'The strongest counterargument is that “greatest in history” is not a single factual claim unless the measurement standard is defined first. By peak tournament influence, Maradona has a case; by World Cup-era mythology and global historical impact, Pelé has a case; by longevity, scoring scale, and adaptation across leagues, Cristiano Ronaldo has a case. The counter-position therefore challenges the certainty of the claim rather than Messi’s greatness itself.',
-    bothSidesAgreeOn: [
-      'Both sides agree that Lionel Messi is one of the greatest players in football history.',
-      'Both sides agree that comparing players across eras is difficult because football conditions changed significantly.'
-    ],
-    disputedPoints: [
-      'The central disagreement is whether Messi’s combination of World Cup success, club dominance, and individual awards is enough to settle the historical debate.',
-      'The sides disagree over how much weight should be given to skill, peak influence, international trophies, longevity, and adaptation across different football environments.'
-    ],
-    sourceNotes: [
-      {
-        sourceType: 'historical_record',
-        title: 'World Cup player and team records',
-        publisher: 'FIFA',
-        date: 'Various updates',
-        note: 'Useful for comparing claims about World Cup performance and historical impact among Pelé, Maradona, and Messi.',
-        strength: 'strong'
-      },
-      {
-        sourceType: 'reporting',
-        title: 'Ballon d’Or winners archive',
-        publisher: 'France Football / Ballon d’Or',
-        date: 'Annual updates',
-        note: 'Useful for understanding individual-award arguments, while recognizing that awards do not settle every historical criterion.',
-        strength: 'medium'
-      },
-      {
-        sourceType: 'historical_record',
-        title: 'UEFA Champions League statistics and records',
-        publisher: 'UEFA',
-        date: 'Various updates',
-        note: 'Relevant to longevity and elite club-performance arguments, especially in comparisons involving Cristiano Ronaldo and Messi.',
-        strength: 'strong'
-      }
-    ],
-    uncertaintyNotes: [
-      'There is no universally binding standard for “greatest ever,” so the conclusion changes with the chosen criteria.',
-      'Era-to-era comparison remains indirect because training, rules, media, and match volume changed substantially.'
-    ],
-    neutralNote: 'This is not a verdict. It presents the opposing argument without ranking the players.'
-  };
-}
-
-function getMockReport(text: string, isArabic: boolean): OtherSideReport {
-  const isElonOpenAI = /openai|musk|ماسك|أوبن/i.test(text);
-  if (isFootballGoatClaim(text)) return footballGoatReport(isArabic);
-
-  if (isArabic) {
-    if (isElonOpenAI) return OPENAI_REPORT_AR;
-    return {
-      detectedStory: `يطرح النص ادعاءً بشأن: "${text.substring(0, 120)}..."`,
-      mainParty: 'صاحب الادعاء',
-      otherParty: 'الطرف الآخر',
-      otherSideStory: 'يرى الطرف الآخر أن الادعاءات الواردة في النص تفتقر إلى السياق الكامل. وبينما يُقرّ بوجود الحدث، فإنه يجادل بأن التفسير المُقدَّم يتجاهل عوامل بنيوية وقيودًا خارجية أثّرت في مسار الأحداث.\n\nيستند هذا الطرف في موقفه إلى وقائع موثّقة تُظهر أن الإجراءات المُتّخذة جاءت ردًا على تحديات محددة، لا ابتداءً منه. كما يُؤكد أن التقارير الإعلامية التي تناولت القضية اعتمدت على مصدر واحد دون التحقق من الرواية المقابلة.\n\nومن زاويته، لا يكفي عرض النتيجة النهائية وحدها؛ إذ يجب النظر إلى التسلسل الزمني، وتوزيع المسؤولية، وما إذا كانت الوقائع المختارة تمثل الصورة كاملة أم مجرد جزء منها.',
-      strongestCounterArgument: 'الحجة الأقوى للطرف الآخر هي أن التقييم المُقدَّم يقيس النتائج بمعيار مختلف عمّا أُعلن في البداية كهدف. ومن ثَمّ فإن مقارنة ما حدث بما كان مأمولًا يتطلب أولًا تحديد الظروف التي صِيغت فيها تلك التوقعات والمعايير التي يُفترض القياس عليها.',
-      bothSidesAgreeOn: [
-        'الحدث المُشار إليه وقع فعلًا وتُوثّقه مصادر متعددة.',
-        'الأطراف المعنية فاعلون رئيسيون في هذا المجال ولهم مواقف معلنة.'
-      ],
-      disputedPoints: [
-        'الدوافع الحقيقية وراء الإجراءات المُتّخذة وكيفية تفسير نياتها.',
-        'مدى تمثيل النتائج المُبلَّغ عنها للصورة الكاملة والمنصفة للأحداث.'
-      ],
-      sourceNotes: [
-        {
-          sourceType: 'reporting',
-          title: 'تغطية إعلامية للحدث',
-          publisher: 'وسائل إعلام متعددة',
-          date: 'غير محدد',
-          note: 'تتباين التغطيات في تناول هذا الموضوع؛ يُنصح بمراجعة مصادر متنوعة للحصول على الصورة الكاملة.',
-          strength: 'medium'
-        },
-        {
-          sourceType: 'unknown',
-          title: 'مصادر أولية غير مرفقة في النص',
-          publisher: 'غير محدد',
-          date: 'غير محدد',
-          note: 'غياب المصدر الأصلي يجعل التقرير محدودًا ويزيد الحاجة إلى التحقق قبل تبني أي رواية.',
-          strength: 'missing'
-        }
-      ],
-      uncertaintyNotes: [
-        'لم تُقدَّم مصادر أولية في النص، مما يُصعّب التحقق المستقل من المعلومات الواردة.',
-        'قد تتغير قوة الحجة إذا توفرت وثائق أو تصريحات أصلية من الأطراف المعنية.'
-      ],
-      neutralNote: 'هذا ليس حكمًا. الهدف هو عرض الجانب الآخر فقط، دون البتّ في من هو على حق.'
-    };
-  }
-
-  if (isElonOpenAI) return OPENAI_REPORT_EN;
-  return {
-    detectedStory: `The input presents a claim concerning: "${text.substring(0, 120)}..."`,
-    mainParty: 'Author of original claim',
-    otherParty: 'The other party or affected perspective',
-    otherSideStory: 'The other side would dispute the core framing, arguing that crucial context has been omitted. They contend that the actions described were responses to external constraints not mentioned in the original text.\n\nFrom their perspective, the narrative presented applies a single standard of judgment without accounting for the asymmetric pressures and structural limitations that shaped the decision-making environment at the time.\n\nThey would further note that independent accounts of the same events differ significantly from the version presented, and that primary documents tell a more complex story than the input suggests.',
-    strongestCounterArgument: "The other side's sharpest argument is that the outcome being criticized was the direct result of conditions created or influenced by the very party making the criticism — a structural contradiction that undermines the credibility of the claim.",
-    bothSidesAgreeOn: [
-      'The core event or relationship described in the input is real and documented.',
-      'Both parties are major actors in this domain with substantial public records.'
-    ],
-    disputedPoints: [
-      'The primary motivation behind the actions taken and the correct interpretation of intent.',
-      'Whether the framing in the input accurately represents the full evidentiary record available.'
-    ],
-    sourceNotes: [
-      {
-        sourceType: 'reporting',
-        title: 'News coverage of the dispute',
-        publisher: 'Multiple outlets',
-        date: 'Unspecified',
-        note: 'Multiple news organizations have covered this topic from different angles. Cross-referencing primary documents directly is recommended.',
-        strength: 'medium'
-      },
-      {
-        sourceType: 'unknown',
-        title: 'Primary source not included in input',
-        publisher: 'Unknown',
-        date: 'Unspecified',
-        note: 'The absence of primary material limits the report and increases the need for verification.',
-        strength: 'missing'
-      }
-    ],
-    uncertaintyNotes: [
-      'No primary sources were included in the input, limiting independent structural verification.',
-      'The strength of the counter-position may change if original documents or statements are provided.'
-    ],
-    neutralNote: 'This is not a verdict. It presents the other side\'s argument without judging who is right.'
-  };
-}
-
 export async function POST(req: Request) {
   let _step = 'parse';
   try {
+    // Abuse / cost control: cap requests per client before doing any work.
+    const rate = checkRateLimit(clientKey(req));
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: 'rate_limited', retryAfter: rate.retryAfterSec },
+        { status: 429, headers: { 'Retry-After': String(rate.retryAfterSec) } }
+      );
+    }
+
     const { text, mode, sourceStrictness, lang } = await req.json();
-    if (!text) {
+    if (!text || typeof text !== 'string' || !text.trim()) {
       return NextResponse.json({ error: 'Text input is required' }, { status: 400 });
+    }
+    if (text.length > 5000) {
+      return NextResponse.json({ error: 'Input too long (max 5000 characters)' }, { status: 400 });
+    }
+
+    // Serve identical queries from cache to save Serper + LLM cost.
+    const key = cacheKey({ text: text.trim(), mode, sourceStrictness, lang });
+    const cached = getCached<OtherSideReport>(key);
+    if (cached) {
+      console.log('[generate] cache hit');
+      return NextResponse.json({ report: cached, cached: true });
     }
 
     _step = 'detect';
@@ -524,17 +359,22 @@ Return valid JSON only using the required schema. Write all values in formal Ara
     }
 
     const finalCheck = isValidReport(report, isArabic, mode);
-    if (demoMode || !finalCheck.ok) {
-      console.log('[generate] falling to demo mode. reason:', demoReason || finalCheck.reason);
-      report = getMockReport(text, isArabic);
-      demoMode = true;
-      demoReason = demoReason || finalCheck.reason;
-    } else if (evidence.all.length > 0 && report.sourceNotes) {
-      // The model passed the quality gate AND we supplied real search
-      // evidence. Guard against fabricated links: any sourceNote URL not
-      // present in that evidence is dropped and downgraded to "missing".
-      // (Skipped when search is disabled, since then citations legitimately
-      // come from the model's training data and we have nothing to verify against.)
+    // No fake fallback: if we could not produce a verified report, say so
+    // honestly. Never serve fabricated content under a real query.
+    if (demoMode || !report || !finalCheck.ok) {
+      const reason = demoReason || finalCheck.reason;
+      const kind = /localhost|AI_API_BASE_URL|timed out|ECONNREFUSED|50\d|no-key/i.test(reason || '')
+        ? 'connectivity'
+        : 'quality';
+      console.warn('[generate] unavailable. kind=' + kind + ' reason:', reason);
+      return NextResponse.json({ unavailable: true, kind, reason }, { status: 200 });
+    }
+
+    // The model passed the quality gate AND we supplied real search evidence.
+    // Guard against fabricated links: any sourceNote URL not present in that
+    // evidence is dropped and downgraded to "missing". (Skipped when search is
+    // disabled, since then citations legitimately come from training data.)
+    if (evidence.all.length > 0 && report.sourceNotes) {
       const allowed = allowedEvidenceUrls(evidence.all);
       report.sourceNotes = report.sourceNotes.map((s) =>
         s.url && !isUrlInEvidence(s.url, allowed)
@@ -566,7 +406,8 @@ Return valid JSON only using the required schema. Write all values in formal Ara
       note: rewrite(s.note),
     }));
 
-    return NextResponse.json({ report, demoMode, demoReason });
+    setCached(key, report);
+    return NextResponse.json({ report });
   } catch (err: any) {
     const msg = err?.message || String(err) || 'Internal error';
     console.error('[generate] ERROR at step=' + (_step as string) + ':', msg, err?.stack?.slice(0, 600));

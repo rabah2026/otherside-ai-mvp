@@ -5,6 +5,9 @@ export interface SearchResult {
   publisher: string;
   date?: string;
   evidenceTier?: 'official_english' | 'arabic_context' | 'general';
+  // Extracted main text of the page, when we successfully fetched it. This is
+  // what lets the model ground facts in real content instead of a short snippet.
+  fullText?: string;
 }
 
 const OFFICIAL_DOMAIN_PARTS = [
@@ -152,6 +155,60 @@ async function serperSearch(query: string, lang: 'en' | 'ar', limit = 8): Promis
   }
 }
 
+// Strip an HTML document down to readable main text. Best-effort: removes
+// scripts/styles/nav/header/footer, drops tags, decodes common entities, and
+// collapses whitespace. Not a full parser — good enough to give the model real
+// paragraphs to ground facts in.
+function htmlToText(html: string): string {
+  return html
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(script|style|noscript|svg|nav|header|footer|aside|form)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Fetch a page and return its main text (capped). Returns '' on any failure
+// (timeout, block, non-HTML) so callers can fall back to the snippet.
+export async function fetchPageText(url: string, timeoutMs = 5000, maxChars = 2500): Promise<string> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; OtherSideAI/1.0; +https://otherside-ai-handoff.vercel.app)',
+        Accept: 'text/html,application/xhtml+xml',
+      },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) return '';
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('html')) return '';
+    const html = await res.text();
+    const text = htmlToText(html);
+    return text.length > maxChars ? text.slice(0, maxChars) + '…' : text;
+  } catch {
+    return '';
+  }
+}
+
+// Enrich the top sources with fetched page text, in parallel. Only the first
+// `limit` sources are fetched to stay within the latency budget.
+async function enrichWithPageText(results: SearchResult[], limit = 3): Promise<SearchResult[]> {
+  const toFetch = results.slice(0, limit);
+  const enriched = await Promise.all(
+    toFetch.map(async (r) => {
+      const fullText = await fetchPageText(r.url);
+      return fullText.length > 200 ? { ...r, fullText } : r;
+    })
+  );
+  return [...enriched, ...results.slice(limit)];
+}
+
 function uniqueByUrl(results: SearchResult[]): SearchResult[] {
   const seen = new Set<string>();
   return results.filter((result) => {
@@ -182,9 +239,13 @@ export async function searchEvidenceForReport(input: {
   const news = englishResults.filter((r) => !isOfficialEnglishEvidence(r.url) && isReputableNews(r.url));
   const general = englishResults.filter((r) => !isOfficialEnglishEvidence(r.url) && !isReputableNews(r.url));
 
-  const officialEnglish = uniqueByUrl([...primary, ...news, ...general.slice(0, 3)])
+  const officialRanked = uniqueByUrl([...primary, ...news, ...general.slice(0, 3)])
     .slice(0, 6)
     .map((result) => ({ ...result, evidenceTier: 'official_english' as const }));
+
+  // Fetch real page text for the top sources so the model grounds facts in
+  // actual content, not a one-line snippet. This is the core accuracy lever.
+  const officialEnglish = await enrichWithPageText(officialRanked, 3);
 
   const shouldFetchArabic = input.isArabic && (input.isArabicContext || hasArabicContext(input.text));
   const arabicContext = shouldFetchArabic
@@ -238,7 +299,12 @@ export function formatEvidenceContext(
   isArabic: boolean
 ): string {
   const officialItems = evidence.officialEnglish
-    .map((r, i) => `[EN-OFFICIAL-${i + 1}] ${r.publisher}${r.date ? ' · ' + r.date : ''}\nTitle: ${r.title}\nURL: ${r.url}\nSnippet: ${r.snippet}`)
+    .map((r, i) => {
+      const body = r.fullText
+        ? `Extracted page content (use these facts): ${r.fullText}`
+        : `Snippet: ${r.snippet}`;
+      return `[EN-OFFICIAL-${i + 1}] ${r.publisher}${r.date ? ' · ' + r.date : ''}\nTitle: ${r.title}\nURL: ${r.url}\n${body}`;
+    })
     .join('\n\n');
 
   const arabicItems = evidence.arabicContext

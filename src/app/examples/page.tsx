@@ -45,7 +45,7 @@ export default function Examples() {
           <div className="text-xs font-mono uppercase tracking-widest text-neutral-500 font-semibold border-b border-neutral-200 dark:border-neutral-900 pb-2">
             {t('exampleOpenAI')}
           </div>
-          <ReportBrief report={mockData} demoMode={false} />
+          <ReportBrief report={mockData} />
         </div>
       </div>
     </div>

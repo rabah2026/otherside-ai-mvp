@@ -18,8 +18,6 @@ export default function AppWorkspace() {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<OtherSideReport | null>(null);
-  const [demoMode, setDemoMode] = useState(false);
-  const [demoReason, setDemoReason] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleSelectExample = (claim: string) => {
@@ -45,18 +43,36 @@ export default function AppWorkspace() {
         }),
       });
 
-      if (!res.ok) {
-        throw new Error('Failed to generate report');
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 429) {
+        const secs = data.retryAfter || 60;
+        throw new Error(
+          lang === 'ar'
+            ? `عدد كبير من الطلبات. حاول مرة أخرى بعد ${secs} ثانية.`
+            : `Too many requests. Please try again in ${secs} seconds.`
+        );
       }
 
-      const data = await res.json();
-      if (data.error) {
-        throw new Error(data.error);
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to generate report');
+      }
+
+      // Honest failure: the AI could not produce a verified report. We never
+      // show fabricated content — surface a clear, non-alarming message.
+      if (data.unavailable) {
+        throw new Error(
+          data.kind === 'connectivity'
+            ? (lang === 'ar'
+                ? 'تعذّر الاتصال بخدمة الذكاء الاصطناعي حاليًا. حاول مرة أخرى بعد قليل.'
+                : 'Could not reach the AI service right now. Please try again shortly.')
+            : (lang === 'ar'
+                ? 'لم نتمكن من إنتاج تقرير موثّق لهذا المُدخل. جرّب إعادة الصياغة أو المحاولة مرة أخرى.'
+                : 'We could not produce a verified report for this input. Try rephrasing or running it again.')
+        );
       }
 
       setReport(data.report);
-      setDemoMode(data.demoMode);
-      setDemoReason(data.demoReason || null);
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred during generation.');
     } finally {
@@ -141,7 +157,7 @@ export default function AppWorkspace() {
             <div className="text-xs font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-500 text-center">
               {lang === 'ar' ? 'نتيجة التحليل' : 'Generated Analysis Report'}
             </div>
-            <ReportBrief report={report} demoMode={demoMode} demoReason={demoReason} />
+            <ReportBrief report={report} />
           </div>
         )}
       </div>

@@ -9,8 +9,6 @@ import { useConfig } from '@/context/ConfigContext';
 
 interface Props {
   report: OtherSideReport;
-  demoMode: boolean;
-  demoReason?: string | null;
 }
 
 const SOURCE_TYPE_LABELS: Record<string, { en: string; ar: string }> = {
@@ -63,7 +61,7 @@ function Section({
   );
 }
 
-export default function ReportBrief({ report, demoMode, demoReason }: Props) {
+export default function ReportBrief({ report }: Props) {
   const { t, lang } = useConfig();
   const briefRef = useRef<HTMLDivElement>(null);
   const [exporting, setExporting] = useState(false);
@@ -167,34 +165,6 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
         ref={briefRef}
         className="rounded-2xl border border-neutral-200 dark:border-neutral-800/60 bg-white dark:bg-[#0d0d14] overflow-hidden"
       >
-        {/* Demo mode banner */}
-        {demoMode && (
-          <div className="px-5 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/40 flex items-start gap-2">
-            <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-            <div className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug">
-              <span className="font-semibold">{lang === 'ar' ? 'عرض توضيحي — ' : 'Demo Mode — '}</span>
-              {(() => {
-                const r = demoReason || '';
-                const isConnectivity = /localhost|AI_API_BASE_URL|timed out|ECONNREFUSED|504|503|502|no-key/i.test(r);
-                if (lang === 'ar') {
-                  return isConnectivity
-                    ? 'تعذّر الاتصال بخدمة الذكاء الاصطناعي. تأكد من إعداد متغيرات البيئة في Vercel.'
-                    : 'لم يستوفِ الرد المُولَّد معايير الجودة المطلوبة. يُعرض محتوى توضيحي بدلاً منه.';
-                } else {
-                  return isConnectivity
-                    ? 'Could not reach the AI service. Check that environment variables are set in Vercel.'
-                    : 'The AI response did not meet quality standards. Showing a sample report instead.';
-                }
-              })()}
-              {demoReason && (
-                <span className="block mt-0.5 font-mono text-[9px] text-amber-400/70 truncate" title={demoReason}>
-                  {demoReason}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Card header */}
         <div className="px-5 py-4 border-b border-neutral-100 dark:border-neutral-800/60 flex items-start justify-between gap-4">
           <div className="space-y-1.5">
