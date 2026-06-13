@@ -415,9 +415,17 @@ export async function POST(req: Request) {
       balanced: isArabic ? 'Source strictness: balanced. Combine evidence with careful reasoning and mark uncertainty.' : 'Source strictness: balanced. Combine evidence with careful reasoning and mark uncertainty.',
     };
 
+    const now = new Date();
+    const todayISO = now.toISOString().slice(0, 10);
+    const currentYear = now.getUTCFullYear();
+    const dateContext = isArabic
+      ? `\n\nالتاريخ الحالي: ${todayISO} (نحن في عام ${currentYear}). حلّل الموضوع من منظور هذا التاريخ. لا تعتبر أحداث ${currentYear - 1} أو ما قبلها أحداثًا مستقبلية أو جارية الآن. عند ذكر مدة حدث مستمر، احسبها حتى عام ${currentYear}.`
+      : `\n\nCurrent date: ${todayISO} (we are in ${currentYear}). Analyze from the perspective of this date. Do not treat events from ${currentYear - 1} or earlier as future or still-unfolding. When stating the duration of an ongoing event, compute it up to ${currentYear}.`;
+
     const userPrompt = `${modeInstr[mode] || modeInstr.quick}
 ${strictnessInstr[sourceStrictness] || strictnessInstr.balanced}
 ${langInstruction}
+${dateContext}
 ${subjectiveGuidance}
 ${searchContext}
 
@@ -461,6 +469,7 @@ Return one JSON object only.`;
         : `Critical fix needed: the previous result failed quality check (${firstCheck.reason}). Regenerate carefully.`;
 
       const retryPrompt = `${langInstruction}
+${dateContext}
 ${subjectiveGuidance}
 ${searchContext}
 
