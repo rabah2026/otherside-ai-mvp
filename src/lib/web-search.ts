@@ -250,8 +250,8 @@ export function formatEvidenceContext(
     : 'No official English evidence source was found by search. Do not invent sources; use sourceNotes with strength missing and state that official evidence was not available in the search.';
 
   const policy = isArabic
-    ? 'سياسة الأدلة: ابن الوقائع فقط على مصادر EN-OFFICIAL الإنجليزية الرسمية أدناه، ثم اشرحها بالعربية. مصادر AR-CONTEXT، إن وجدت، تستخدم فقط لفهم السياق المحلي أو العربي.'
-    : 'Evidence policy: base factual claims only on the EN-OFFICIAL sources below. AR-CONTEXT sources, if present, are supplemental context only.';
+    ? 'سياسة الأدلة (إلزامية): استند للوقائع والأرقام والإحصائيات والألقاب فقط من مصادر EN-OFFICIAL أدناه. بيانات تدريبك القديمة ممنوعة تماماً للأرقام والإنجازات وسجلات الرياضيين — قد تكون قديمة بسنوات. إذا لم يُذكر الرقم في المصادر، لا تخترعه. مصادر AR-CONTEXT تستخدم فقط للسياق، وليس كمصادر إحصائية.'
+    : 'Evidence policy (mandatory): base ALL facts, numbers, statistics, titles, and records ONLY on EN-OFFICIAL sources below. Your training-data knowledge of statistics and achievements is forbidden — it may be years out of date. If a number is not in the sources, do not invent it. AR-CONTEXT sources are supplemental context only, not statistical sources.';
 
   return `\n\n### EVIDENCE POLICY\n${policy}\n\n### EN-OFFICIAL SOURCES\n${officialItems || noOfficial}${arabicItems ? `\n\n### AR-CONTEXT SOURCES\n${arabicItems}` : ''}`;
 }

@@ -384,20 +384,20 @@ export async function POST(req: Request) {
     console.log('[generate] step=detect', { isArabic, mode, lang, textLen: text.length });
 
     _step = 'search';
-    const searchQuery = footballGoat
-      ? (isArabic
-        ? 'ليونيل ميسي بيليه مارادونا كريستيانو رونالدو الأفضل في التاريخ كأس العالم الكرة الذهبية دوري أبطال أوروبا'
-        : 'Lionel Messi Pele Maradona Cristiano Ronaldo greatest footballer World Cup Ballon d Or Champions League')
+    // Primary evidence query
+    const englishQuery = footballGoat
+      ? 'Lionel Messi Pele Maradona Cristiano Ronaldo FIFA UEFA official records World Cup Champions League'
+      : `${text.substring(0, 150)} official English source evidence`;
+    const arabicQuery = footballGoat
+      ? 'ليونيل ميسي بيليه مارادونا كريستيانو رونالدو الأفضل في التاريخ كأس العالم الكرة الذهبية دوري أبطال أوروبا'
       : (isArabic
         ? `${text.substring(0, 150)} تحليل مراجع`
         : `${text.substring(0, 150)} analysis sources perspectives`);
     const evidence = await searchEvidenceForReport({
       text,
       isArabic,
-      englishQuery: footballGoat
-        ? 'Lionel Messi Pele Maradona Cristiano Ronaldo FIFA UEFA official records World Cup Champions League'
-        : `${text.substring(0, 150)} official English source evidence`,
-      arabicQuery: searchQuery,
+      englishQuery,
+      arabicQuery,
     });
     const searchContext = formatEvidenceContext(evidence, isArabic);
     console.log('[generate] step=search done', { official: evidence.officialEnglish.length, arabic: evidence.arabicContext.length });
@@ -439,8 +439,8 @@ export async function POST(req: Request) {
     const todayISO = now.toISOString().slice(0, 10);
     const currentYear = now.getUTCFullYear();
     const dateContext = isArabic
-      ? `\n\nالتاريخ الحالي: ${todayISO} (نحن في عام ${currentYear}). حلّل الموضوع من منظور هذا التاريخ. لا تعتبر أحداث ${currentYear - 1} أو ما قبلها أحداثًا مستقبلية أو جارية الآن. عند ذكر مدة حدث مستمر، احسبها حتى عام ${currentYear}.`
-      : `\n\nCurrent date: ${todayISO} (we are in ${currentYear}). Analyze from the perspective of this date. Do not treat events from ${currentYear - 1} or earlier as future or still-unfolding. When stating the duration of an ongoing event, compute it up to ${currentYear}.`;
+      ? `\n\nالتاريخ الحالي: ${todayISO} (نحن في عام ${currentYear}). تحذير حاسم: بيانات تدريبك تنتهي عند تاريخ أقدم من هذا — معلوماتك عن الإحصائيات والسجلات والمسيرات الرياضية والأحداث الجارية قديمة وقد تكون خاطئة. يُحظر عليك استخدام أي إحصاء أو رقم أو سجل أو لقب من ذاكرتك. استخدم الأرقام والأحداث الواردة في مصادر EN-OFFICIAL فقط. إذا لم تجد الإحصاء في المصادر، لا تذكره وأشر إلى أن البيانات الكاملة تتطلب مراجعة مصدر محدّث.`
+      : `\n\nCurrent date: ${todayISO} (we are in ${currentYear}). CRITICAL WARNING: your training data ends before this date — your knowledge of statistics, records, sports careers, and recent events is outdated and may be wrong. You are FORBIDDEN from citing any statistic, score, record, or achievement from your training memory. Use ONLY numbers and facts found in the EN-OFFICIAL search sources below. If a statistic is not in the sources, do not invent it — state that current data requires a verified source.`;
 
     const userPrompt = `${modeInstr[mode] || modeInstr.quick}
 ${strictnessInstr[sourceStrictness] || strictnessInstr.balanced}
