@@ -101,6 +101,21 @@ function isValidReport(r: any, isArabic: boolean, mode = 'quick'): { ok: boolean
   if (Array.isArray(r.sourceNotes) && r.sourceNotes.some((s: any) => isPlaceholderLeak(s?.note)))
     return { ok: false, reason: 'placeholder_leak_source_note' };
 
+  // Verbatim duplicate sentence anywhere in the report (story, counter, or any
+  // list item) is a clear recycling bug — reject regardless of how many other
+  // sentences exist. 40-char minimum avoids flagging short common phrases;
+  // genuine prose never repeats a 40-char sentence word-for-word.
+  const allText = [story, counter, ...allListItems.map((s) => String(s || ''))].join('\n');
+  const normSentences = allText
+    .split(/[.!?؟\n]+/)
+    .map((s) => s.replace(/\s+/g, ' ').trim().toLowerCase())
+    .filter((s) => s.length >= 40);
+  const seenSentences = new Set<string>();
+  for (const s of normSentences) {
+    if (seenSentences.has(s)) return { ok: false, reason: 'duplicate_sentence' };
+    seenSentences.add(s);
+  }
+
   // Exact sentence overlap between agree and disputed — the same point cannot
   // be both agreed and contested. Use 70-char prefix: enough to distinguish
   // different points about the same topic while catching verbatim copies.
@@ -313,8 +328,8 @@ Return one JSON object only.`;
         ? 'Critical fix needed: your previous response used rhetorical questions. Replace EVERY question with a declarative sentence that states a fact, a named actor, or a documented finding.'
         : firstCheck.reason.startsWith('counter_duplicates')
         ? 'Critical fix needed: strongestCounterArgument must introduce a NEW specific fact not already in otherSideStory. Do not repeat or rephrase sentences from the story.'
-        : (firstCheck.reason.startsWith('cross_section_duplicate') || firstCheck.reason.startsWith('list_item_duplicates'))
-        ? 'Critical fix needed: you reused the same sentences across strongestCounterArgument, bothSidesAgreeOn, disputedPoints, and uncertaintyNotes. Each section must make a DIFFERENT point — no sentence or paraphrase of it may appear in more than one place in the entire response.'
+        : (firstCheck.reason.startsWith('cross_section_duplicate') || firstCheck.reason.startsWith('list_item_duplicates') || firstCheck.reason.startsWith('duplicate_sentence') || firstCheck.reason.startsWith('agree_disputed'))
+        ? 'Critical fix needed: you repeated the same sentence in more than one place (e.g. the same sentence appeared twice in otherSideStory, or a disputed point copied the counter-argument). Every sentence in the entire response must be unique — write each paragraph, counter-argument, agreement, and disputed point as a DISTINCT statement with no verbatim or near-verbatim repetition.'
         : firstCheck.reason.startsWith('placeholder_leak')
         ? 'Critical fix needed: you left literal template text (like "why this source matters" or angle-bracket instructions) in the output. Replace every field with real, specific content in formal Arabic.'
         : firstCheck.reason.startsWith('bothSides_missing')
