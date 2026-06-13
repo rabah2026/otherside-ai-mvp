@@ -33,6 +33,25 @@ function hasExcessiveQuestions(text: string): boolean {
   return questionMarks > 4;
 }
 
+// Literal schema placeholder text the model sometimes copies verbatim
+// instead of generating real content (e.g. "why this source matters").
+const PLACEHOLDER_PATTERNS = [
+  /^why this source matters$/i,
+  /^complete sentence$/i,
+  /^source title$/i,
+  /^publisher or institution$/i,
+  /^neutral disclaimer$/i,
+  /^party making the claim$/i,
+  /^the other party or affected side$/i,
+  /<[^>]+>/, // any leftover <...> instruction text
+];
+
+function isPlaceholderLeak(text: unknown): boolean {
+  const s = String(text || '').trim();
+  if (!s) return false;
+  return PLACEHOLDER_PATTERNS.some((p) => p.test(s));
+}
+
 // Subjective "greatest/best ever" claims in any domain (sports, science,
 // art…) — used to steer the model toward criteria-based comparison rather
 // than picking a winner.
@@ -67,24 +86,31 @@ function isValidReport(r: any, isArabic: boolean): { ok: boolean; reason: string
     return { ok: false, reason: `excessive_questions_in_story:${(story.match(/[؟?]/g) || []).length}` };
   if (hasExcessiveQuestions(counter))
     return { ok: false, reason: `excessive_questions_in_counter:${(counter.match(/[؟?]/g) || []).length}` };
-  // The same sentence appearing as both an agreement and a dispute is a
-  // contradiction — a sign the model padded the lists instead of thinking.
-  const norm = (s: unknown) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 60);
-  const agreeSet = new Set((r.bothSidesAgreeOn as unknown[]).map(norm));
-  if ((r.disputedPoints as unknown[]).some((p) => agreeSet.has(norm(p))))
-    return { ok: false, reason: 'agree_disputed_overlap' };
-  // Cross-field recycling: the counter-argument must add new content, not be
-  // a copy of story sentences; list items must not be near-copies of each
-  // other across the agree/disputed sections.
+  // Reject literal schema placeholders copied into the output.
+  const allListItems = [
+    ...(r.bothSidesAgreeOn as unknown[]),
+    ...(r.disputedPoints as unknown[]),
+    ...((r.uncertaintyNotes as unknown[]) || []),
+  ];
+  if (isPlaceholderLeak(story) || isPlaceholderLeak(counter) || allListItems.some(isPlaceholderLeak))
+    return { ok: false, reason: 'placeholder_leak' };
+  if (Array.isArray(r.sourceNotes) && r.sourceNotes.some((s: any) => isPlaceholderLeak(s?.note)))
+    return { ok: false, reason: 'placeholder_leak_source_note' };
+
+  // Cross-section recycling: the counter-argument and every list item should
+  // be distinct points, not the same 3-4 sentences shuffled into different
+  // buckets. Collect all atomic items and reject if any two are near-copies.
+  const atomicItems = [counter, ...allListItems.map((s) => String(s || ''))].filter((s) => s.length > 15);
+  for (let i = 0; i < atomicItems.length; i++) {
+    for (let j = i + 1; j < atomicItems.length; j++) {
+      if (trigramContainment(atomicItems[i], atomicItems[j]) > 0.6)
+        return { ok: false, reason: 'cross_section_duplicate' };
+    }
+  }
+  // The counter-argument must add content beyond the story, not copy it.
   const counterOverlap = trigramContainment(counter, story);
   if (counterOverlap > 0.75)
     return { ok: false, reason: `counter_duplicates_story:${counterOverlap.toFixed(2)}` };
-  for (const agree of r.bothSidesAgreeOn as unknown[]) {
-    for (const disputed of r.disputedPoints as unknown[]) {
-      if (trigramContainment(String(disputed || ''), String(agree || '')) > 0.85)
-        return { ok: false, reason: 'agree_disputed_near_duplicate' };
-    }
-  }
   if (isArabic) {
     const ratio = arabicRatio(story);
     if (ratio < 0.45) return { ok: false, reason: `arabic_ratio:${ratio.toFixed(2)}` };
@@ -119,28 +145,30 @@ Quality floor:
 - bothSidesAgreeOn and disputedPoints must each contain at least 2 complete declarative sentences with different content.
 - sourceNotes must contain at least 2 source notes. Use strength "missing" only when no source is available. Mark strength "strong" only for government, intergovernmental, academic, or major news institutions; commercial sites and blogs are at most "weak".
 
+IMPORTANT: The schema below shows REQUIRED KEYS with angle-bracket INSTRUCTIONS describing what to write. Never copy the instruction text literally. Replace every <...> with real content in the user's language. A response that contains any literal placeholder text like "why this source matters" or "complete sentence" will be rejected.
+
 Schema:
 {
-  "detectedStory": "neutral summary of the input claim",
-  "mainParty": "party making the claim",
-  "otherParty": "other party or affected side",
-  "otherSideStory": "3 or more substantial paragraphs with evidence, criteria, and context",
-  "strongestCounterArgument": "the sharpest evidence-based point from the other side",
-  "bothSidesAgreeOn": ["complete sentence", "complete sentence"],
-  "disputedPoints": ["complete sentence", "complete sentence"],
+  "detectedStory": "<neutral one-sentence summary of the input claim, in the user's language>",
+  "mainParty": "<who makes the claim, in the user's language>",
+  "otherParty": "<the opposing or affected side, in the user's language>",
+  "otherSideStory": "<3+ substantial paragraphs of the opposing perspective with named facts, in the user's language>",
+  "strongestCounterArgument": "<the single sharpest distinct counter-point, in the user's language>",
+  "bothSidesAgreeOn": ["<a specific point both sides accept>", "<a different shared point>"],
+  "disputedPoints": ["<a specific contested point>", "<a different contested point>"],
   "sourceNotes": [
     {
       "sourceType": "official_statement|court_filing|reporting|primary_source|historical_record|unknown",
-      "title": "source title",
-      "publisher": "publisher or institution",
-      "date": "date",
-      "note": "why this source matters",
+      "title": "<actual source title>",
+      "publisher": "<actual publisher or institution>",
+      "date": "<publication date>",
+      "note": "<one specific sentence explaining what this source contributes, in the user's language>",
       "strength": "strong|medium|weak|missing",
       "url": "https://... only if certain"
     }
   ],
-  "uncertaintyNotes": ["complete sentence"],
-  "neutralNote": "neutral disclaimer"
+  "uncertaintyNotes": ["<a specific open question or limitation>"],
+  "neutralNote": "<neutral closing disclaimer, in the user's language>"
 }`;
 
 function footballGoatReport(isArabic: boolean): OtherSideReport {
@@ -422,6 +450,10 @@ Return one JSON object only.`;
         ? 'Critical fix needed: your previous response used rhetorical questions. Replace EVERY question with a declarative sentence that states a fact, a named actor, or a documented finding.'
         : firstCheck.reason.startsWith('counter_duplicates')
         ? 'Critical fix needed: strongestCounterArgument must introduce a NEW specific fact not already in otherSideStory. Do not repeat or rephrase sentences from the story.'
+        : firstCheck.reason.startsWith('cross_section_duplicate')
+        ? 'Critical fix needed: you reused the same sentences across strongestCounterArgument, bothSidesAgreeOn, disputedPoints, and uncertaintyNotes. Each of these must be a DISTINCT point — no sentence or its paraphrase may appear in more than one place.'
+        : firstCheck.reason.startsWith('placeholder_leak')
+        ? 'Critical fix needed: you left literal template text (like "why this source matters" or angle-bracket instructions) in the output. Replace every field with real, specific content in formal Arabic.'
         : firstCheck.reason.startsWith('arabic_ratio')
         ? 'Critical fix needed: write ALL values in formal Arabic script only. Do not mix languages.'
         : firstCheck.reason.startsWith('story_short')
@@ -493,10 +525,12 @@ Return valid JSON only using the required schema. Write all values in formal Ara
     if (report.bothSidesAgreeOn) report.bothSidesAgreeOn = report.bothSidesAgreeOn.map(rewrite);
     if (report.disputedPoints) report.disputedPoints = report.disputedPoints.map(rewrite);
     if (report.uncertaintyNotes) report.uncertaintyNotes = report.uncertaintyNotes.map(rewrite);
+    // Source titles/publishers are factual metadata (often real names that
+    // legitimately contain Latin script) — preserve them as-is. Only the
+    // generated `note` prose goes through the neutrality/Arabic cleanup.
     if (report.sourceNotes) report.sourceNotes = report.sourceNotes.map((s) => ({
       ...s,
       note: rewrite(s.note),
-      title: s.title ? rewrite(s.title) : s.title,
     }));
 
     return NextResponse.json({ report, demoMode, demoReason });
