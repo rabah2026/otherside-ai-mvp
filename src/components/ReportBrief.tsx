@@ -186,6 +186,11 @@ export default function ReportBrief({ report, demoMode, demoReason }: Props) {
                     : 'The AI response did not meet quality standards. Showing a sample report instead.';
                 }
               })()}
+              {demoReason && (
+                <span className="block mt-0.5 font-mono text-[9px] text-amber-400/70 truncate" title={demoReason}>
+                  {demoReason}
+                </span>
+              )}
             </div>
           </div>
         )}

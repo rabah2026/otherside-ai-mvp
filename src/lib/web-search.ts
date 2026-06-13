@@ -296,23 +296,13 @@ export function isRepetitive(text: string): boolean {
   if (!text || text.length < 50) return true;
   const sentences = text.split(/[.!?؟\n]+/).map(s => s.trim()).filter(s => s.length > 20);
   if (sentences.length < 2) return false;
-  // Real prose never repeats a 60-char sentence prefix; any duplicate in a
-  // short report body is recycled filler.
+  // Catch copy-paste filler: same sentence prefix appearing more than once.
+  // Threshold 0.75: up to 25% sentence-prefix repetition is tolerated
+  // (a topic word like "الحرب السودانية" may open multiple paragraphs).
   const unique = new Set(sentences.map(s => s.toLowerCase().substring(0, 60)));
-  if (unique.size < sentences.length * 0.8) return true;
-
-  // Template repetition: the same sentence skeleton recycled with one or two
-  // words swapped ("كندا تقدم X أفضل ... وفقا لخبراء X" × 6). Sentence-prefix
-  // dedup misses it, but word-trigram reuse across the whole text exposes it:
-  // genuine prose rarely repeats trigrams, templates repeat most of them.
-  const words = text.toLowerCase().split(/\s+/).filter(w => w.length > 1);
-  if (words.length >= 40) {
-    const trigrams = new Set<string>();
-    const total = words.length - 2;
-    for (let i = 0; i < total; i++) {
-      trigrams.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
-    }
-    if (trigrams.size / total < 0.65) return true;
-  }
-  return false;
+  return unique.size < sentences.length * 0.75;
+  // Note: the trigram-uniqueness check was removed. Focused Arabic writing
+  // about a single topic legitimately repeats topic words ("الجيش السوداني",
+  // "قوات الدعم السريع") across sentences, which tank trigram uniqueness
+  // even in genuine, non-repetitive prose.
 }

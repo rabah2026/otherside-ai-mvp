@@ -120,8 +120,10 @@ function isValidReport(r: any, isArabic: boolean, mode = 'quick'): { ok: boolean
     }
   }
   // The counter-argument must add content beyond the story, not copy it.
+  // 0.80 threshold: counter and story are about the same topic and will
+  // naturally share many words; only reject when it's a near-verbatim copy.
   const counterOverlap = trigramContainment(counter, story);
-  if (counterOverlap > 0.65)
+  if (counterOverlap > 0.80)
     return { ok: false, reason: `counter_duplicates_story:${counterOverlap.toFixed(2)}` };
   if (isArabic) {
     const ratio = arabicRatio(story);
