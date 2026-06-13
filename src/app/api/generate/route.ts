@@ -59,14 +59,18 @@ function isSubjectiveSuperlative(text: string): boolean {
   return /(الأفضل|الأعظم|افضل|اعظم|greatest|best ever|goat|أهم|اهم)/i.test(text || '');
 }
 
-function isValidReport(r: any, isArabic: boolean): { ok: boolean; reason: string } {
+function isValidReport(r: any, isArabic: boolean, mode = 'quick'): { ok: boolean; reason: string } {
   if (!r || typeof r !== 'object') return { ok: false, reason: 'not_object' };
 
   const story = String(r.otherSideStory || '');
   const counter = String(r.strongestCounterArgument || '');
-  // GLM-4.7 writes concise but correct Arabic — use lenient minimums.
-  const minStoryLength = isArabic ? 200 : 380;
+
+  // Mode-specific quality floors: deep and history require more content.
+  const minStoryLength = isArabic
+    ? (mode === 'deep' ? 350 : mode === 'history' ? 280 : 200)
+    : (mode === 'deep' ? 550 : mode === 'history' ? 450 : 380);
   const minCounterLength = isArabic ? 70 : 120;
+  const minSources = mode === 'quick' ? 1 : 2;
 
   if (story.length < minStoryLength)
     return { ok: false, reason: `story_short:${story.length}<${minStoryLength}` };
@@ -76,7 +80,7 @@ function isValidReport(r: any, isArabic: boolean): { ok: boolean; reason: string
     return { ok: false, reason: `bothSides_missing:${JSON.stringify(r.bothSidesAgreeOn)?.slice(0, 80)}` };
   if (!Array.isArray(r.disputedPoints) || r.disputedPoints.length < 2)
     return { ok: false, reason: `disputed_missing:${JSON.stringify(r.disputedPoints)?.slice(0, 80)}` };
-  if (!Array.isArray(r.sourceNotes) || r.sourceNotes.length < 1)
+  if (!Array.isArray(r.sourceNotes) || r.sourceNotes.length < minSources)
     return { ok: false, reason: `sources_missing:${JSON.stringify(r.sourceNotes)?.slice(0, 80)}` };
   if (isRepetitive(story)) return { ok: false, reason: 'story_repetitive' };
   if (isRepetitive(counter)) return { ok: false, reason: 'counter_repetitive' };
@@ -404,9 +408,15 @@ export async function POST(req: Request) {
       : `\n\nLanguage: Write all JSON string values in clear, formal English. Every list item must be a complete sentence. Use EN-OFFICIAL sources as the factual base.`;
 
     const modeInstr: Record<string, string> = {
-      quick: isArabic ? 'Mode: QUICK. Write at least 3 focused Arabic paragraphs in otherSideStory and include at least 2 source notes.' : 'Mode: QUICK. Write at least 3 focused paragraphs and include at least 2 source notes.',
-      deep: isArabic ? 'Mode: DEEP. Write 4 Arabic paragraphs covering position, evidence, named actors, and timeline.' : 'Mode: DEEP. Write 4 paragraphs covering position, evidence, named actors, and timeline.',
-      history: isArabic ? 'Mode: HISTORY MIRROR. Focus on omitted voices and historical context, written in Arabic.' : 'Mode: HISTORY MIRROR. Focus on omitted voices and historical context.',
+      quick: isArabic
+        ? 'الوضع: سريع. اكتب 3 فقرات مركّزة ومباشرة في otherSideStory تعرض أقوى حجج الطرف الآخر فقط. لا تتوسّع في التاريخ أو السياق البعيد. في strongestCounterArgument ركّز على النقطة الواحدة الأكثر حدةً. أدرج مصدرًا واحدًا على الأقل.'
+        : 'Mode: QUICK. Write 3 focused, direct paragraphs in otherSideStory presenting only the sharpest counter-arguments. Do not expand into history or distant context. In strongestCounterArgument give the single most pointed counter-fact. Include at least 1 source.',
+      deep: isArabic
+        ? 'الوضع: عميق. اكتب 4 فقرات تغطي: (1) موقف الطرف الآخر بدقة، (2) الأدلة الموثّقة والأرقام والإحصائيات، (3) الفاعلون المسمّون والمؤسسات والوثائق الرسمية، (4) الجدول الزمني للأحداث الرئيسية. أدرج 3 مصادر على الأقل مع تواريخ دقيقة. كل فقرة يجب أن تحمل معلومة جديدة غير موجودة في الأخريات.'
+        : 'Mode: DEEP. Write 4 paragraphs covering: (1) the other side\'s position precisely, (2) documented evidence with numbers and statistics, (3) named actors, institutions, and official documents, (4) a timeline of key events with specific dates. Include at least 3 sources with exact dates. Each paragraph must add new information not covered by the others.',
+      history: isArabic
+        ? 'الوضع: مرآة التاريخ. ركّز حصراً على: (1) الأصوات المغيّبة — من لم يُسمع رأيه في هذه القضية؟ (2) السياق التاريخي الذي سبق الحدث الحالي بسنوات أو عقود، (3) أنماط مشابهة في التاريخ — هل حدث هذا من قبل؟ ماذا كانت النتيجة؟ (4) العوامل الهيكلية والأنظمة التي أفرزت هذا الوضع، وليس الأحداث الفردية. تجنّب التركيز على الجدل الراهن وركّز على الجذور والسياق الأعمق. أدرج مصدرين على الأقل.'
+        : 'Mode: HISTORY MIRROR. Focus exclusively on: (1) omitted voices — who was not heard in this dispute?, (2) historical context that predates the current event by years or decades, (3) similar historical patterns — has this happened before and what was the outcome?, (4) structural factors and systems that produced this situation, not individual events. Avoid focus on current controversy; focus on roots and deeper context. Include at least 2 sources.',
     };
 
     const strictnessInstr: Record<string, string> = {
@@ -448,7 +458,7 @@ Return one JSON object only.`;
     let demoMode = Boolean(firstResult.demoMode);
     let demoReason: string | undefined = firstResult.reason;
 
-    const firstCheck = isValidReport(report, isArabic);
+    const firstCheck = isValidReport(report, isArabic, mode);
     console.log('[generate] first call demoMode:', firstResult.demoMode, '| validity:', firstCheck.reason,
       '| story_len:', report?.otherSideStory?.length, '| counter_len:', report?.strongestCounterArgument?.length,
       '| arabic_ratio:', report?.otherSideStory ? arabicRatio(String(report.otherSideStory)).toFixed(2) : 'n/a');
@@ -486,7 +496,7 @@ Return valid JSON only using the required schema. Write all values in formal Ara
         timeoutMs: 18000,
       });
 
-      const retryCheck = isValidReport(retryResult.data, true);
+      const retryCheck = isValidReport(retryResult.data, true, mode);
       console.log('[generate] retry demoMode:', retryResult.demoMode, '| validity:', retryCheck.reason,
         '| story_len:', retryResult.data?.otherSideStory?.length);
 
@@ -499,7 +509,7 @@ Return valid JSON only using the required schema. Write all values in formal Ara
       }
     }
 
-    const finalCheck = isValidReport(report, isArabic);
+    const finalCheck = isValidReport(report, isArabic, mode);
     if (demoMode || !finalCheck.ok) {
       console.log('[generate] falling to demo mode. reason:', demoReason || finalCheck.reason);
       report = getMockReport(text, isArabic);
